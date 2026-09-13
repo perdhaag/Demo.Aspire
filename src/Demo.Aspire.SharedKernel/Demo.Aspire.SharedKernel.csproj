@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <!--
+      The Shared Kernel holds the tactical DDD building blocks that every bounded
+      context is allowed to share. It deliberately has *zero* package references:
+      nothing about persistence, transport or hosting may leak into the domain.
+    -->
+
+</Project>

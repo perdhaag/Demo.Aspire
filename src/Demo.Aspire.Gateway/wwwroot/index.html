@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Demo Kino</title>
+    <link rel="stylesheet" href="app.css">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎟️</text></svg>">
+</head>
+<body>
+<header class="masthead">
+    <div class="masthead-inner">
+        <div class="brand">
+            <span class="brand-mark" aria-hidden="true">🎟</span>
+            <div>
+                <h1>Demo Kino</h1>
+                <p>Five services, one booking, no orchestrator.</p>
+            </div>
+        </div>
+        <label class="identity">
+            <span>Booking as</span>
+            <input id="email" type="email" value="ada@example.com" spellcheck="false"
+                   aria-label="Your e-mail address">
+        </label>
+    </div>
+</header>
+
+<main>
+    <!-- Step 1 ─ the catalogue, served through the gateway's Redis output cache. -->
+    <section aria-labelledby="step-screenings">
+        <h2 id="step-screenings"><span class="step">1</span>Tonight&rsquo;s screenings</h2>
+        <div class="screenings" id="screenings">
+            <p class="empty">Loading&hellip;</p>
+        </div>
+        <p class="aside">
+            This list is output-cached in Redis by the gateway for ten seconds, so the seat
+            counts here can lag the seat map below by a moment. That is the cache working,
+            not a bug &mdash; the seat map is read straight through.
+        </p>
+    </section>
+
+    <!-- Step 2 ─ the seat map, a Redis-cached projection of the Screening aggregate. -->
+    <section id="seating" aria-labelledby="step-seats" hidden>
+        <h2 id="step-seats"><span class="step">2</span>Choose your seats</h2>
+        <div class="panel seatmap-panel">
+            <div class="screen" aria-hidden="true"><span>SCREEN</span></div>
+            <div class="seatmap-scroll">
+                <div class="seatmap" id="seatmap"></div>
+            </div>
+            <ul class="legend">
+                <li><span class="swatch is-free"></span>Free</li>
+                <li><span class="swatch is-picked"></span>Yours</li>
+                <li><span class="swatch is-held"></span>On hold</li>
+                <li><span class="swatch is-sold"></span>Sold</li>
+            </ul>
+            <form id="checkout" class="checkout">
+                <div class="tally">
+                    <strong id="tally-seats">No seats selected</strong>
+                    <span id="tally-total"></span>
+                </div>
+                <button class="primary" type="submit" id="book" disabled>Book seats</button>
+            </form>
+            <p class="aside">
+                Book as an address containing <code>decline</code> &mdash; say
+                <code>decline@example.com</code> &mdash; and Payments refuses the charge, so
+                you can watch the seats go back on sale.
+            </p>
+        </div>
+    </section>
+
+    <!-- Step 3 ─ the point of the demo: the choreography, as it happens. -->
+    <section id="flow-section" aria-labelledby="step-flow" hidden>
+        <h2 id="step-flow"><span class="step">3</span>What happens next</h2>
+        <div class="panel">
+            <ol class="flow" id="flow"></ol>
+            <p class="aside" id="flow-note"></p>
+        </div>
+    </section>
+
+    <section aria-labelledby="ledgers">
+        <h2 id="ledgers"><span class="step">&middot;</span>Behind the scenes</h2>
+        <div class="tabs" role="tablist">
+            <button role="tab" id="tab-bookings" aria-controls="pane-bookings" aria-selected="true">Your bookings</button>
+            <button role="tab" id="tab-payments" aria-controls="pane-payments" aria-selected="false">Payments</button>
+            <button role="tab" id="tab-mail" aria-controls="pane-mail" aria-selected="false">Mail sent</button>
+        </div>
+        <div class="panel pane" id="pane-bookings" role="tabpanel" aria-labelledby="tab-bookings"></div>
+        <div class="panel pane" id="pane-payments" role="tabpanel" aria-labelledby="tab-payments" hidden></div>
+        <div class="panel pane" id="pane-mail" role="tabpanel" aria-labelledby="tab-mail" hidden></div>
+    </section>
+</main>
+
+<footer>
+    <p>
+        Screenings &middot; Bookings &middot; Payments &middot; Notifications &middot; Gateway.
+        Everything past &ldquo;Placed&rdquo; happens on RabbitMQ; this page only polls.
+    </p>
+</footer>
+
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>

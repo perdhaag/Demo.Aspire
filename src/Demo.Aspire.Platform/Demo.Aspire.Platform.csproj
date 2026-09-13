@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <!--
+      Shared *infrastructure*, kept out of the Shared Kernel on purpose. Everything here
+      knows about EF Core, MassTransit or ASP.NET Core; none of it knows about cinemas.
+    -->
+
+    <ItemGroup>
+        <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="FluentValidation" />
+        <PackageReference Include="FluentValidation.DependencyInjectionExtensions" />
+        <PackageReference Include="MassTransit" />
+        <PackageReference Include="MassTransit.EntityFrameworkCore" />
+        <PackageReference Include="MassTransit.RabbitMQ" />
+        <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\Demo.Aspire.Contracts\Demo.Aspire.Contracts.csproj" />
+        <ProjectReference Include="..\Demo.Aspire.SharedKernel\Demo.Aspire.SharedKernel.csproj" />
+    </ItemGroup>
+
+</Project>

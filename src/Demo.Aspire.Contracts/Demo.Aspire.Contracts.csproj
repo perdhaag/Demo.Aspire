@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <!--
+      The published language of the system. Every bounded context may reference this
+      assembly, so it contains primitives only: no domain types, no value objects and
+      no behaviour. That keeps contexts free to evolve their models independently.
+    -->
+
+</Project>

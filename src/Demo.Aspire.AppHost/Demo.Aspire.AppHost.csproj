@@ -1,0 +1,31 @@
+<Project Sdk="Aspire.AppHost.Sdk/13.5.3">
+
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <AspireUseCliBundle>true</AspireUseCliBundle>
+        <UserSecretsId>b525b6fd-fb80-4777-b65f-71a678d71515</UserSecretsId>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Aspire.Hosting.AppHost" />
+        <PackageReference Include="Aspire.Hosting.PostgreSQL" />
+        <PackageReference Include="Aspire.Hosting.RabbitMQ" />
+        <PackageReference Include="Aspire.Hosting.Redis" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <!-- The contracts assembly is referenced as a plain library, not as a resource:
+             the app host only wants the resource-name constants from it. -->
+        <ProjectReference Include="..\Demo.Aspire.Contracts\Demo.Aspire.Contracts.csproj"
+                          IsAspireProjectResource="false" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\Demo.Aspire.Screenings\Demo.Aspire.Screenings.csproj" />
+        <ProjectReference Include="..\Demo.Aspire.Bookings\Demo.Aspire.Bookings.csproj" />
+        <ProjectReference Include="..\Demo.Aspire.Payments\Demo.Aspire.Payments.csproj" />
+        <ProjectReference Include="..\Demo.Aspire.Notifications\Demo.Aspire.Notifications.csproj" />
+        <ProjectReference Include="..\Demo.Aspire.Gateway\Demo.Aspire.Gateway.csproj" />
+    </ItemGroup>
+
+</Project>
