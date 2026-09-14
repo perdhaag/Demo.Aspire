@@ -24,6 +24,8 @@ const state = {
                                      // the booking id they belong to — this is what the
                                      // trace waterfall is built from.
     dashboardUrl: '',       // from GET /api/demo; empty just hides the dashboard link.
+    tapeAutoOpened: false,  // the bus-tape dock opens itself once per booking watched,
+                            // and then stays wherever the reader put it.
 };
 
 /* ── Transport ────────────────────────────────────────────────────────────── */
@@ -359,6 +361,7 @@ function clearFlowPanels() {
 function track(bookingId) {
     clearFlowPanels();
     state.tracked = { mine: bookingId, rival: null };
+    state.tapeAutoOpened = false;
     el('flow-section').hidden = false;
     el('flow-label-mine').hidden = true;
     el('flow-panel-rival').hidden = true;
@@ -374,6 +377,7 @@ function track(bookingId) {
 function trackRace(mineId, rivalId) {
     clearFlowPanels();
     state.tracked = { mine: mineId, rival: rivalId };
+    state.tapeAutoOpened = false;
     el('flow-section').hidden = false;
     el('flow-label-mine').hidden = false;
     el('flow-panel-rival').hidden = false;
@@ -679,6 +683,7 @@ function appendTapeRow(entry) {
 
     rows.querySelector('.tape-empty')?.remove();
     rows.append(tapeRow(entry));
+    updateTapePeek(entry);
     recordEntryForWaterfall(entry);
 
     while (rows.children.length > MAX_TAPE_ROWS) {
@@ -691,9 +696,41 @@ function appendTapeRow(entry) {
     // instead of waiting for the next safety-net poll. Debounced because the read
     // model the flow queries is written a moment after the message that reports it.
     if (trackedCorrelationIds().includes(entry.correlationId)) {
+        // Opened the first time this booking reaches the bus — the moment the tape has
+        // something to say about what you just did — and then left alone.
+        if (tapeDock.matches && !state.tapeAutoOpened) {
+            state.tapeAutoOpened = true;
+            setTapeOpen(true);
+        }
+
         clearTimeout(tapeRefreshTimer);
         tapeRefreshTimer = setTimeout(() => refresh().catch(() => {}), 150);
     }
+}
+
+// Below the two-column breakpoint the tape is a dock at the bottom of the screen (see
+// app.css), and these three are the whole of its behaviour. On a wide screen the rail is
+// already open beside the page, the handle is display:none, and none of this runs.
+const tapeDock = matchMedia('(max-width: 900px)');
+
+function setTapeOpen(open) {
+    el('tape').classList.toggle('is-open', open);
+    el('tape-toggle').setAttribute('aria-expanded', String(open));
+}
+
+el('tape-toggle').onclick = () => setTapeOpen(!el('tape').classList.contains('is-open'));
+
+// The newest entry, kept on the collapsed dock's handle. This is what makes the dock
+// worth opening: it keeps moving while you are still choosing seats, so the bus is
+// visibly busy rather than a claim the page makes about itself.
+function updateTapePeek(entry) {
+    const service = el('peek-svc');
+
+    service.textContent = entry.service;
+    service.style.setProperty('--tape-row-color', `var(--svc-${entry.service})`);
+    el('peek-event').textContent = tapeRowLabel(entry);
+    el('peek-at').textContent = preciseClock.format(new Date(entry.atUtc));
+    el('peek-detail').textContent = tapeRowDetail(entry) || 'Tap to open the tape';
 }
 
 function setTapeStatus(connected, text) {

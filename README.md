@@ -118,7 +118,11 @@ Five things exist purely so the choreography is visible instead of asserted:
   published or consumed, over Server-Sent Events (`GET /api/events`). It is what the
   page actually reacts to — placing a booking no longer starts a fast poll; a tape entry
   for the booking you are watching schedules the one refresh that matters, and the poll
-  loop underneath is only a slow safety net.
+  loop underneath is only a slow safety net. On a narrow screen the rail becomes a dock
+  pinned to the bottom: collapsed it costs one row, carrying the newest message, and it
+  opens itself the first time the booking you just placed reaches the bus. Stacked at the
+  end of a phone-length page instead, it would sit some four screens below the seat you
+  booked, which is the same as not being there.
 * **Short holds** (the masthead switch) shortens a new seat hold from three minutes to
   twenty seconds and speeds up `SeatHoldSweeper` to match (`GET`/`POST
   /screenings/hold-policy`), so the "seats went back on sale on their own" path is
