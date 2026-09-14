@@ -20,6 +20,10 @@ const state = {
                             // since the seat map does not carry when a hold began.
     chaosMode: 'None',      // refreshed from GET /payments/chaos on every tick, since
                             // "Failing" clears itself server-side without a click.
+    entriesByCorrelation: new Map(), // bus tape entries seen this session, grouped by
+                                     // the booking id they belong to — this is what the
+                                     // trace waterfall is built from.
+    dashboardUrl: '',       // from GET /api/demo; empty just hides the dashboard link.
 };
 
 /* ── Transport ────────────────────────────────────────────────────────────── */
@@ -339,14 +343,16 @@ el('chaos-fail').onclick = () => setChaosMode('Failing');
 /* ── Step 3: the flow ─────────────────────────────────────────────────────── */
 
 const FLOW_PANELS = {
-    mine: { list: el('flow-mine'), note: el('flow-note-mine') },
-    rival: { list: el('flow-rival'), note: el('flow-note-rival') },
+    mine: { list: el('flow-mine'), note: el('flow-note-mine'), waterfall: el('waterfall-mine') },
+    rival: { list: el('flow-rival'), note: el('flow-note-rival'), waterfall: el('waterfall-rival') },
 };
 
 function clearFlowPanels() {
     for (const panel of Object.values(FLOW_PANELS)) {
         replace(panel.list);
         panel.note.textContent = '';
+        replace(panel.waterfall);
+        panel.waterfall.hidden = true;
     }
 }
 
@@ -468,6 +474,102 @@ function drawFlow(booking, payment, mail, panel) {
 
 const markerFor = state => ({ done: '✓', failed: '✕', pending: '·', waiting: '' })[state] ?? '';
 
+/* ── Trace waterfall ──────────────────────────────────────────────────────── */
+//
+// Built entirely from the bus tape's own timestamps (recordEntryForWaterfall, above) —
+// not a real trace backend, which is exactly why the caption beside it says so. Fine to
+// within a millisecond or two on one machine sharing one clock; not a substitute for
+// the Aspire dashboard's own trace view, which is what the link beside it is for.
+
+const SERVICE_LANE_ORDER = ['screenings', 'bookings', 'payments', 'notifications', 'gateway'];
+
+// Pairs each event's Published row with the first Consumed row for the same event —
+// a Faulted row is a retry that did not (yet) finish the hop, so it is left out of the
+// waterfall itself, though it already showed up in the tape rail above.
+function buildHops(entries) {
+    const byEvent = new Map();
+
+    for (const entry of entries) {
+        const bucket = byEvent.get(entry.event) ?? { published: null, consumed: null };
+
+        if (entry.kind === 'Published') bucket.published = entry;
+        else if (entry.kind === 'Consumed' && !bucket.consumed) bucket.consumed = entry;
+
+        byEvent.set(entry.event, bucket);
+    }
+
+    return [...byEvent.values()].filter(hop => hop.published);
+}
+
+function drawWaterfall(booking, entries, container) {
+    const hops = buildHops(entries).map(hop => ({
+        service: hop.consumed?.service ?? null,
+        publishedAtMs: new Date(hop.published.atUtc) - new Date(booking.placedAtUtc),
+        consumeStartMs: hop.consumed
+            ? new Date(hop.consumed.atUtc) - new Date(booking.placedAtUtc) - hop.consumed.durationMs
+            : null,
+        consumeEndMs: hop.consumed ? new Date(hop.consumed.atUtc) - new Date(booking.placedAtUtc) : null,
+    }));
+
+    if (hops.length === 0) {
+        container.hidden = true;
+        return;
+    }
+
+    const totalMs = Math.max(...hops.map(hop => hop.consumeEndMs ?? hop.publishedAtMs), 1);
+    const pct = ms => `${Math.max(0, Math.min(100, (ms / totalMs) * 100)).toFixed(2)}%`;
+
+    // The gap between a publish and the hop's own consume is queue wait — the point of
+    // this whole panel. The widest one gets a label; the others still draw, so the
+    // shape of "where the time went" is visible even without reading a number.
+    const gaps = hops
+        .filter(hop => hop.consumeStartMs !== null && hop.consumeStartMs > hop.publishedAtMs)
+        .map(hop => ({ startMs: hop.publishedAtMs, endMs: hop.consumeStartMs }));
+
+    const widestGap = gaps.reduce(
+        (widest, gap) => (gap.endMs - gap.startMs > (widest?.endMs - widest?.startMs ?? -1) ? gap : widest),
+        null);
+
+    const gapTrack = node('div', { className: 'wf-gaptrack' }, gaps.map(gap => {
+        const bar = node('span', {
+            className: 'wf-gap',
+            style: `left:${pct(gap.startMs)}; width:${pct(gap.endMs - gap.startMs)}`,
+        });
+
+        if (gap === widestGap) {
+            bar.append(node('span', {
+                className: 'wf-gap-label',
+                style: `left:${pct((gap.startMs + gap.endMs) / 2)}`,
+                textContent: `${Math.round(gap.endMs - gap.startMs)} ms queue wait`,
+            }));
+        }
+
+        return bar;
+    }));
+
+    const lanes = SERVICE_LANE_ORDER
+        .map(service => ({ service, bars: hops.filter(hop => hop.service === service) }))
+        .filter(lane => lane.bars.length > 0)
+        .map(lane => node('div', { className: 'wf-lane' },
+            node('span', { className: 'wf-lane-label', textContent: lane.service }),
+            node('div', { className: 'wf-track' }, lane.bars.map(hop => {
+                const bar = node('span', {
+                    className: 'wf-bar',
+                    style: `left:${pct(hop.consumeStartMs)}; width:${pct(hop.consumeEndMs - hop.consumeStartMs)}`,
+                    title: `${hop.service}: ${Math.round(hop.consumeEndMs - hop.consumeStartMs)} ms`,
+                });
+
+                bar.style.setProperty('--tape-row-color', `var(--svc-${lane.service})`);
+                return bar;
+            }))));
+
+    replace(container, gapTrack, lanes, node('div', { className: 'wf-axis' },
+        node('span', { textContent: '0 ms' }),
+        node('span', { textContent: `total ${Math.round(totalMs)} ms` })));
+
+    container.hidden = false;
+}
+
 // Runs every second regardless of when the flow was last redrawn, so "Xs left to pay"
 // counts down smoothly between polls instead of jumping only when refresh() happens to
 // fire. Ticking a countdown by re-rendering the whole flow list would also fight the
@@ -553,11 +655,31 @@ function applyTapeFilter() {
 
 el('tape-filter').onchange = applyTapeFilter;
 
+const MAX_TRACKED_CORRELATIONS = 50;
+
+// Grouped by correlation id so the trace waterfall can be rebuilt for whichever
+// booking(s) are tracked, without asking the gateway for anything it has not already
+// streamed here. Capped the same way the tape rail itself is capped, so a long-running
+// demo session cannot grow this without bound.
+function recordEntryForWaterfall(entry) {
+    if (!state.entriesByCorrelation.has(entry.correlationId)) {
+        if (state.entriesByCorrelation.size >= MAX_TRACKED_CORRELATIONS) {
+            const oldest = state.entriesByCorrelation.keys().next().value;
+            state.entriesByCorrelation.delete(oldest);
+        }
+
+        state.entriesByCorrelation.set(entry.correlationId, []);
+    }
+
+    state.entriesByCorrelation.get(entry.correlationId).push(entry);
+}
+
 function appendTapeRow(entry) {
     const rows = el('tape-rows');
 
     rows.querySelector('.tape-empty')?.remove();
     rows.append(tapeRow(entry));
+    recordEntryForWaterfall(entry);
 
     while (rows.children.length > MAX_TAPE_ROWS) {
         rows.firstElementChild?.remove();
@@ -692,6 +814,7 @@ async function refresh() {
                 payments.find(payment => payment.bookingId === mine),
                 mail.find(entry => entry.bookingId === mine),
                 FLOW_PANELS.mine);
+            drawWaterfall(mineBooking, state.entriesByCorrelation.get(mine) ?? [], el('waterfall-mine'));
         }
 
         if (rival && rivalBooking) {
@@ -700,6 +823,7 @@ async function refresh() {
                 payments.find(payment => payment.bookingId === rival),
                 mail.find(entry => entry.bookingId === rival),
                 FLOW_PANELS.rival);
+            drawWaterfall(rivalBooking, state.entriesByCorrelation.get(rival) ?? [], el('waterfall-rival'));
         }
 
         // Both sides need to be finished before the seat map is worth reloading — a
@@ -728,8 +852,21 @@ async function tick() {
 
 el('email').onchange = () => refresh().catch(() => {});
 
+// The dashboard link is fetched once, not per booking: it names the environment, not
+// anything about one flow. An empty dashboardUrl (see AppHost.cs) just leaves it hidden.
+async function loadDemoInfo() {
+    const { dashboardUrl } = await api('/demo');
+
+    if (dashboardUrl) {
+        state.dashboardUrl = dashboardUrl;
+        el('dashboard-link').href = dashboardUrl;
+        el('dashboard-link').hidden = false;
+    }
+}
+
 connectTape();
 loadHoldPolicy().catch(() => {}); // the switch just stays at its default if this fails
+loadDemoInfo().catch(() => {}); // the link just stays hidden if this fails
 await loadScreenings().catch(error => toast(`Could not reach the gateway: ${error.message}`));
 
 // ?screening=<id> makes a seat map shareable, and lets a headless browser reach step 2.

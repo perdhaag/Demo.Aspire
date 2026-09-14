@@ -496,6 +496,89 @@ h2 {
 /* The last 30s of a seat hold, ticking down live — see tickHoldCountdowns in app.js. */
 .flow li.countdown-warn .who { color: var(--warn); font-weight: 500; }
 
+/* ── Trace waterfall ──────────────────────────────────────────────────────── */
+/* Built from the bus tape's own timestamps (see drawWaterfall in app.js), not from a
+   real trace backend — that honesty is why every number here is reconstructed rather
+   than measured, and why the caption beside it says so. */
+
+.waterfall {
+    margin-top: 16px;
+    padding-top: 14px;
+    border-top: 1px solid var(--line);
+}
+
+.wf-gaptrack {
+    position: relative;
+    height: 16px;
+    margin: 0 0 2px 6.5rem;
+}
+
+.wf-gap {
+    position: absolute;
+    top: 7px;
+    height: 2px;
+    min-width: 2px;
+    background: var(--ink-faint);
+}
+
+.wf-gap-label {
+    position: absolute;
+    top: -11px;
+    transform: translateX(-50%);
+    font-size: .66rem;
+    color: var(--ink-faint);
+    white-space: nowrap;
+}
+
+.wf-lane {
+    display: grid;
+    grid-template-columns: 6.5rem 1fr;
+    align-items: center;
+    gap: 8px;
+    min-height: 1.7rem;
+}
+
+.wf-lane-label {
+    font-size: .72rem;
+    color: var(--ink-soft);
+    text-align: right;
+    white-space: nowrap;
+}
+
+.wf-track {
+    position: relative;
+    height: 1rem;
+    background: var(--page);
+    border-radius: 4px;
+}
+
+.wf-bar {
+    position: absolute;
+    top: 0;
+    height: 100%;
+    min-width: 3px;
+    border-radius: 3px;
+    background: var(--tape-row-color, var(--ink-faint));
+}
+
+.wf-axis {
+    display: flex;
+    justify-content: space-between;
+    margin: 6px 0 0 6.5rem;
+    font-size: .68rem;
+    color: var(--ink-faint);
+    font-variant-numeric: tabular-nums;
+}
+
+.wf-caption {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 10px;
+    align-items: baseline;
+}
+
+.wf-caption a { color: var(--accent); white-space: nowrap; }
+
 /* ── Chaos strip ──────────────────────────────────────────────────────────── */
 
 .chaos-mark { background: var(--warn); color: var(--panel); }

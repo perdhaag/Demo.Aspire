@@ -102,14 +102,22 @@
             <div class="panel flow-panel" id="flow-panel-mine">
                 <p class="flow-panel-label" id="flow-label-mine" hidden>You</p>
                 <ol class="flow" id="flow-mine"></ol>
+                <div class="waterfall" id="waterfall-mine" hidden></div>
                 <p class="aside" id="flow-note-mine"></p>
             </div>
             <div class="panel flow-panel" id="flow-panel-rival" hidden>
                 <p class="flow-panel-label">Rival &middot; <code>rival@example.com</code></p>
                 <ol class="flow" id="flow-rival"></ol>
+                <div class="waterfall" id="waterfall-rival" hidden></div>
                 <p class="aside" id="flow-note-rival"></p>
             </div>
         </div>
+        <p class="aside wf-caption">
+            The timing above is reconstructed from message timestamps taken in five
+            separate processes &mdash; fine to within a millisecond or two on one
+            machine, not a substitute for a real trace.
+            <a id="dashboard-link" href="#" target="_blank" rel="noopener" hidden>Open the Aspire dashboard&nbsp;&rarr;</a>
+        </p>
     </section>
 
     <section aria-labelledby="ledgers">

@@ -38,6 +38,16 @@ app.MapGet("/api/events", (IConnectionMultiplexer redis, CancellationToken cance
         TypedResults.ServerSentEvents(BusTapeReader.StreamAsync(redis, cancellationToken), eventType: "bus"))
     .WithName("StreamBusTape");
 
+// Best-effort, per the app host's own comment on Demo__DashboardUrl: an empty string
+// here just means the UI hides the link rather than guessing at one.
+app.MapGet("/api/demo", (IConfiguration configuration) =>
+        TypedResults.Ok(new DemoInfo(configuration["Demo:DashboardUrl"] ?? string.Empty)))
+    .WithName("GetDemoInfo");
+
 app.MapReverseProxy();
 
 app.Run();
+
+/// <summary>What the UI needs to know about the demo environment itself, not about any
+/// one booking. Currently just the dashboard link for the trace waterfall.</summary>
+internal sealed record DemoInfo(string DashboardUrl);
