@@ -72,8 +72,6 @@ internal sealed class PlaceBookingHandler(
             return offer.Error;
         }
 
-        // A courtesy check only. Screenings owns the seat map and will say no again, for
-        // real, when it handles the message this booking is about to publish.
         SeatNumber[] unavailable = [.. seats.Value.Where(seat => !offer.Value.AvailableSeats.Contains(seat))];
 
         if (unavailable.Length > 0)

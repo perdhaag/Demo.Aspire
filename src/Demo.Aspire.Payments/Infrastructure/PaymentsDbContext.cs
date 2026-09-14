@@ -54,7 +54,6 @@ internal sealed class PaymentConfiguration : IEntityTypeConfiguration<Payment>
         builder.Property(payment => payment.Reference).HasMaxLength(64);
         builder.Property(payment => payment.DeclineReason).HasMaxLength(400);
 
-        // One decision per booking, enforced by the database as well as by the inbox.
         builder.HasIndex(payment => payment.Booking).IsUnique();
     }
 }

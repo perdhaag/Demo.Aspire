@@ -28,10 +28,10 @@ public sealed class ChaosSwitchTests
         chaos.Set(ChaosMode.Failing, failures: 2);
 
         chaos.TryConsumeFailure().ShouldBeTrue();
-        chaos.Mode.ShouldBe(ChaosMode.Failing); // one failure still owed
+        chaos.Mode.ShouldBe(ChaosMode.Failing);
 
         chaos.TryConsumeFailure().ShouldBeTrue();
-        chaos.Mode.ShouldBe(ChaosMode.None); // the last one also turns the switch off
+        chaos.Mode.ShouldBe(ChaosMode.None);
 
         chaos.TryConsumeFailure().ShouldBeFalse();
     }

@@ -23,8 +23,6 @@ public class EfUnitOfWork<TDbContext>(TDbContext dbContext, IDomainEventDispatch
 
     public async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
-        // A handler may touch another aggregate, which may raise further events. Keep
-        // draining until the graph is quiet, with a bound to catch an event cycle.
         for (var pass = 0; ; pass++)
         {
             var pending = DbContext.ChangeTracker.DrainDomainEvents();

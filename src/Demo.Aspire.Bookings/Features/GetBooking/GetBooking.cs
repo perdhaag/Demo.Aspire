@@ -36,10 +36,7 @@ public sealed record BookingResponse(
         [.. booking.Seats.Select(seat => seat.ToString())],
         booking.Total.Amount,
         booking.Total.Currency,
-        booking.Status.ToString(),
-        // The UI measures every later step against this, so the flow it draws is built
-        // from the services' own clocks rather than from when the browser noticed.
-        booking.PlacedAtUtc,
+        booking.Status.ToString(), booking.PlacedAtUtc,
         booking.SeatsHeldAtUtc,
         booking.FinishedAtUtc,
         booking.PayBeforeUtc,
@@ -81,8 +78,6 @@ public sealed class GetBookingEndpoint : IEndpoint
 {
     public void Map(IEndpointRouteBuilder routes)
     {
-        // Polling this is how a client watches the flow finish, which is the honest
-        // trade-off of choreography: the answer is eventual, not immediate.
         routes.MapGet("/bookings/{bookingId:guid}", async (
                 Guid bookingId,
                 GetBookingHandler handler,

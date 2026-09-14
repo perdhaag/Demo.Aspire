@@ -28,9 +28,6 @@ public sealed class AuthorizePaymentConsumer(
         var message = context.Message;
         correlation.Current = message.CorrelationId;
 
-        // While paused, this message stays exactly where a stalled real card network
-        // would leave it: received but not yet acknowledged. Nothing here is retrying —
-        // the queue is simply waiting, same as MassTransit already does mid-redelivery.
         await chaos.WaitWhilePausedAsync(context.CancellationToken);
 
         var booking = new BookingReference(message.BookingId);

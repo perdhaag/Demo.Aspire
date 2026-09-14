@@ -17,8 +17,6 @@ builder.AddServiceDefaults();
 
 builder.AddNpgsqlDbContext<PaymentsDbContext>(ResourceNames.PaymentsDatabase);
 
-// This context has no data of its own in Redis; it is here only so the bus tape (see
-// AddBusTap below) has somewhere to write.
 builder.AddRedisClient(ResourceNames.Cache);
 
 builder.AddPlatform(Assembly.GetExecutingAssembly());
@@ -31,7 +29,6 @@ builder.Services.AddScoped<IUnitOfWork, PaymentsUnitOfWork>();
 builder.Services.AddSingleton<IPaymentGateway, SimulatedPaymentGateway>();
 builder.Services.AddSingleton<ChaosSwitch>();
 
-// Registered before the bus so the outbox tables exist by the time it starts.
 builder.Services.AddHostedService<DatabaseInitializer<PaymentsDbContext>>();
 
 builder.AddMessaging<PaymentsDbContext>(bus => bus.AddConsumers(Assembly.GetExecutingAssembly()));

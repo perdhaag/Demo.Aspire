@@ -13,9 +13,9 @@ public sealed class SeatHoldPolicyTests
     }
 
     [Theory]
-    [InlineData(20, 4)]     // a fifth of the duration, comfortably inside the bounds
-    [InlineData(3, 2)]      // clamped to the 2s floor: too short a hold to sweep at a fifth
-    [InlineData(600, 15)]   // clamped to the 15s ceiling: no need to poll more often than that
+    [InlineData(20, 4)]
+    [InlineData(3, 2)]
+    [InlineData(600, 15)]
     public void The_sweep_interval_scales_with_duration_but_stays_within_bounds(
         int durationSeconds,
         int expectedSweepSeconds)
@@ -27,8 +27,8 @@ public sealed class SeatHoldPolicyTests
     }
 
     [Theory]
-    [InlineData(1, 10)]      // below the 10s floor
-    [InlineData(9_999, 600)] // above the 10-minute ceiling
+    [InlineData(1, 10)]
+    [InlineData(9_999, 600)]
     public void Set_clamps_the_duration_to_a_sane_range(int requestedSeconds, int expectedSeconds)
     {
         var policy = new SeatHoldPolicy();

@@ -32,7 +32,6 @@ public sealed class SeatMapProjection(IDistributedCache cache, ILogger<SeatMapPr
 {
     private static readonly DistributedCacheEntryOptions CacheOptions = new()
     {
-        // Short enough that a missed invalidation self-heals, long enough to matter.
         AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(5),
     };
 

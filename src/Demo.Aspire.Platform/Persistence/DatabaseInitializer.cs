@@ -37,8 +37,6 @@ public sealed class DatabaseInitializer<TDbContext>(
         await using var scope = scopeFactory.CreateAsyncScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<TDbContext>();
 
-        // A demo takes the shortcut: the model is the schema. A real service would call
-        // MigrateAsync() and ship the migrations alongside the code.
         await dbContext.Database.EnsureCreatedAsync(cancellationToken);
 
         foreach (var seeder in scope.ServiceProvider.GetServices<IDatabaseSeeder<TDbContext>>())

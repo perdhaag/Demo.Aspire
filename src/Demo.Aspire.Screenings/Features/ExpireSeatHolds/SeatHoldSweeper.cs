@@ -37,14 +37,9 @@ internal sealed class SeatHoldSweeper(
             }
             catch (Exception exception) when (exception is not OperationCanceledException)
             {
-                // A failed sweep is not fatal: the next tick tries again, and stale holds
-                // are treated as available by the aggregate in the meantime.
                 logger.LogError(exception, "Seat hold sweep failed.");
             }
 
-            // Re-read every tick rather than once at start-up, so flipping the demo's
-            // "short holds" switch tightens the sweep on its very next pass instead of
-            // waiting for this instance to restart.
             if (timer.Period != holdPolicy.SweepInterval)
             {
                 timer.Period = holdPolicy.SweepInterval;
@@ -86,8 +81,6 @@ internal sealed class SeatHoldSweeper(
         }
         catch (DbUpdateConcurrencyException)
         {
-            // Somebody paid in the same instant. They win; the next sweep will pick up
-            // whatever genuinely lapsed.
             logger.LogDebug("Seat hold sweep lost a race with a concurrent booking.");
         }
     }
@@ -99,8 +92,18 @@ internal sealed class SeatHoldLapsedPublisher(
     CorrelationContext correlation,
     TimeProvider clock) : IDomainEventHandler<SeatHoldLapsed>
 {
-    public Task HandleAsync(SeatHoldLapsed domainEvent, CancellationToken cancellationToken) =>
-        publishEndpoint.Publish(
+    public Task HandleAsync(SeatHoldLapsed domainEvent, CancellationToken cancellationToken)
+    {
+        // Everywhere else in the system the correlation arrives on the message being reacted
+        // to. Here there is no message: the sweeper is woken by a clock, so nothing has
+        // stamped the context and CorrelationContext would mint a fresh id. The two rows
+        // that matter most on the bus tape — the hold lapsing, and Bookings cancelling
+        // because of it — would then be filed under an id this booking shares with nothing,
+        // and the one flow in the demo that is driven by time would be the one flow you
+        // could not follow. The booking the hold belonged to is the correlation, as always.
+        correlation.Current = domainEvent.Booking.Value;
+
+        return publishEndpoint.Publish(
             new SeatHoldExpired(
                 correlation.Current,
                 domainEvent.Booking.Value,
@@ -108,4 +111,5 @@ internal sealed class SeatHoldLapsedPublisher(
                 [.. domainEvent.Seats.Select(seat => seat.ToString())],
                 clock.GetUtcNow()),
             cancellationToken);
+    }
 }

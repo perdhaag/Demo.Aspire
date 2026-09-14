@@ -13,6 +13,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { preciseClock } from "../api/format.ts";
 import type { BusTapeEntry } from "../api/types.ts";
 import { useSelection } from "../data/selection.tsx";
+import { stepOfEntry } from "../flow/choreography.ts";
+import { useFlowFocus } from "../hooks/useFlowFocus.ts";
 import { useMediaQuery } from "../hooks/useMediaQuery.ts";
 import { useTape } from "../hooks/useTape.ts";
 import { serviceColour, TapeRow, tapeRowDetail, tapeRowLabel } from "./TapeRow.tsx";
@@ -31,6 +33,10 @@ const TAPE_BODY_ID = "tape-body";
 export function BusTape() {
     const { entries, connection } = useTape();
     const { tracked } = useSelection();
+
+    // A step focused in the flow panel: the rows that carried it stay lit and everything
+    // else — including the other booking's rows during "Race a rival" — steps back.
+    const focus = useFlowFocus();
 
     const isDock = useMediaQuery(DOCK_BREAKPOINT);
 
@@ -125,6 +131,9 @@ export function BusTape() {
                                 key={`${entry.correlationId}:${entry.event}:${entry.kind}:${entry.atUtc}`}
                                 entry={entry}
                                 tracked={trackedIds.includes(entry.correlationId)}
+                                dimmed={focus !== null
+                                    && (entry.correlationId !== focus.correlationId
+                                        || stepOfEntry(entry) !== focus.step)}
                             />
                         ))}
                 </ol>

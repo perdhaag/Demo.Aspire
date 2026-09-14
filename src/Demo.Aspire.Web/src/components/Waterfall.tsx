@@ -1,19 +1,34 @@
 // Draws what flow/waterfall.ts worked out. There is no arithmetic left in here on
 // purpose: every offset arrives as a percentage string, so this component is only the
 // difference between a number and a rectangle.
+//
+// The only judgement it makes is which bars belong to the step being looked at. That is
+// decided by the same table the flow panel and the bus tape read — flow/choreography.ts —
+// so a step, its messages and its bars cannot disagree about what they are.
 
 import type { CSSProperties } from "react";
 
+import type { FlowStepId } from "../flow/choreography.ts";
 import type { WaterfallLayout } from "../flow/waterfall.ts";
 
-export function Waterfall({ layout }: { layout: WaterfallLayout }) {
+interface WaterfallProps {
+    layout: WaterfallLayout;
+    /** The step focused in the flow panel above, or null when nothing is. */
+    focus: FlowStepId | null;
+}
+
+export function Waterfall({ layout, focus }: WaterfallProps) {
+    const dimmed = (step: FlowStepId | null) => String(focus !== null && step !== focus);
+
     return (
         <div className="waterfall">
             <div className="wf-gaptrack">
                 {layout.gaps.map(gap => (
                     <span
-                        key={gap.event}
+                        key={`${gap.event}:${gap.service}`}
                         className="wf-gap"
+                        data-step={gap.step ?? undefined}
+                        data-dim={dimmed(gap.step)}
                         style={{ left: gap.left, width: gap.width }}
                     >
                         {gap.label && (
@@ -31,9 +46,11 @@ export function Waterfall({ layout }: { layout: WaterfallLayout }) {
                     <div className="wf-track">
                         {lane.bars.map(bar => (
                             <span
-                                key={bar.event}
+                                key={`${bar.event}:${bar.service}`}
                                 className="wf-bar"
                                 title={bar.title}
+                                data-step={bar.step ?? undefined}
+                                data-dim={dimmed(bar.step)}
                                 // The bar takes its colour from the same per-service custom
                                 // property the tape and the flow dots use, so one hue always
                                 // means one service across the whole page. React's style type

@@ -28,18 +28,34 @@ const entry = (
     detail: null,
 });
 
-test("a publish and the first consume of the same event make one hop", () => {
+test("one publish consumed by two services is two hops, not one", () => {
+    // BookingConfirmed really does fan out: Screenings sells the seats and Notifications
+    // sends the ticket, independently, neither aware of the other. Keeping only the first
+    // consume — as this used to — drew one of the two and silently dropped the other, so
+    // the clearest argument in the demo for publishing rather than calling was the one
+    // thing the waterfall never showed.
+    const hops = buildHops([
+        entry("BookingConfirmed", "Published", "bookings", 0),
+        entry("BookingConfirmed", "Consumed", "screenings", 100, 20),
+        entry("BookingConfirmed", "Consumed", "notifications", 300, 5),
+    ]);
+
+    expect(hops).toHaveLength(2);
+    expect(hops.map(hop => hop.consumed?.service)).toEqual(["screenings", "notifications"]);
+
+    // Both are measured from the same publish, because there was only one message.
+    expect(new Set(hops.map(hop => hop.published.atUtc))).toHaveLength(1);
+});
+
+test("a redelivery the inbox swallowed is not a second hop for the same service", () => {
     const hops = buildHops([
         entry("BookingPlaced", "Published", "bookings", 0),
         entry("BookingPlaced", "Consumed", "screenings", 100, 20),
-        // Notifications consumes the same event, but the hop already has its consume —
-        // the first one is what the waterfall is timing.
-        entry("BookingPlaced", "Consumed", "notifications", 300, 5),
+        entry("BookingPlaced", "Consumed", "screenings", 300, 5),
     ]);
 
     expect(hops).toHaveLength(1);
-    expect(hops[0]!.published.service).toBe("bookings");
-    expect(hops[0]!.consumed?.service).toBe("screenings");
+    expect(hops[0]!.consumed?.atUtc).toBe(new Date(Date.parse(PLACED) + 100).toISOString());
 });
 
 test("a Faulted row is a retry, not a completed hop, so it is left out", () => {
@@ -83,8 +99,35 @@ test("hops lay out as percentages of the slowest one, in service-lane order", ()
     expect(layout.lanes[0]!.bars[0]).toMatchObject({
         left: "20.00%",
         width: "5.00%",
-        title: "screenings: 20 ms",
+        title: "screenings: BookingPlaced, 20 ms",
+        // Screenings consuming BookingPlaced *is* step 2 — which is what lets focusing
+        // that step in the flow panel light this bar and nothing else.
+        step: "held",
     });
+});
+
+test("every bar and gap names the step it belongs to", () => {
+    const layout = buildWaterfall([
+        entry("BookingPlaced", "Published", "bookings", 0),
+        entry("BookingPlaced", "Consumed", "screenings", 100, 20),
+        entry("SeatsHeld", "Published", "screenings", 120),
+        entry("SeatsHeld", "Consumed", "bookings", 200, 10),
+        entry("BookingConfirmed", "Published", "bookings", 400),
+        entry("BookingConfirmed", "Consumed", "screenings", 500, 10),
+        entry("BookingConfirmed", "Consumed", "notifications", 600, 10),
+    ], PLACED)!;
+
+    const steps = layout.lanes.flatMap(lane => lane.bars.map(bar => `${bar.service}:${bar.step}`));
+
+    expect(steps.sort()).toEqual([
+        "bookings:authorized",       // Bookings picking up SeatsHeld is step 3
+        "notifications:delivered",   // …and both halves of the fan-out are step 6
+        "screenings:delivered",
+        "screenings:held",           // Screenings picking up BookingPlaced is step 2
+    ]);
+
+    // The wait in front of a consume belongs to the step that was waiting to start.
+    expect(layout.gaps.every(gap => gap.step !== null)).toBe(true);
 });
 
 test("the widest queue wait is the one that gets a label", () => {

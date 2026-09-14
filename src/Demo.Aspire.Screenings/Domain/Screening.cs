@@ -215,7 +215,7 @@ public sealed class Screening : AggregateRoot<ScreeningId>
         if (held.Length == 0)
         {
             return _seats.Any(seat => seat.IsSoldTo(booking))
-                ? Result.Success() // Already sold: a redelivered confirmation, nothing to do.
+                ? Result.Success()
                 : Error.Conflict("seat.no-hold", $"Booking {booking} holds no seats on this screening.");
         }
 

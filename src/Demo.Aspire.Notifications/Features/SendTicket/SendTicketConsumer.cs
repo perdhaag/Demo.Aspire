@@ -20,8 +20,6 @@ public sealed class SendTicketConsumer(
         var message = context.Message;
         var messageId = context.MessageId ?? message.BookingId;
 
-        // Without a database there is no transactional inbox, so Redis is what stops a
-        // redelivery from mailing the customer twice.
         if (!await log.TryClaimAsync(messageId))
         {
             logger.LogInformation("Ticket for booking {BookingId} was already sent.", message.BookingId);
@@ -49,7 +47,6 @@ public sealed class SendTicketConsumer(
         }
         catch
         {
-            // Give the claim back so the broker's retry can actually retry.
             await log.ReleaseClaimAsync(messageId);
             throw;
         }

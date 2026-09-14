@@ -25,7 +25,7 @@ export function Ledgers() {
 
     return (
         <section aria-labelledby="ledgers">
-            <h2 id="ledgers"><span className="step">·</span>Behind the scenes</h2>
+            <h2 id="ledgers">Behind the scenes</h2>
 
             <div className="tabs" role="tablist">
                 <button {...tabProps("bookings")}>Your bookings</button>

@@ -55,8 +55,6 @@ public sealed class ChaosSwitch(TimeProvider clock)
             }
         }
 
-        // Completed outside the lock: the continuation this releases could otherwise
-        // try to re-enter it.
         toRelease?.TrySetResult();
     }
 

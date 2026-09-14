@@ -44,8 +44,6 @@ internal sealed class ScreeningsSeeder(TimeProvider clock, ILogger<ScreeningsSee
                 continue;
             }
 
-            // Seeding bypasses the domain-event pipeline on purpose: nobody is listening
-            // yet, and "the system started" is not a fact worth broadcasting.
             screening.Value.DrainDomainEvents();
             dbContext.Screenings.Add(screening.Value);
         }

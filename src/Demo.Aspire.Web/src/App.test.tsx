@@ -4,11 +4,34 @@
 // subscribed to without a real EventSource behind it.
 
 import { afterEach, beforeEach, expect, test } from "bun:test";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 import { App } from "./App.tsx";
 
 const screeningId = "11111111-1111-1111-1111-111111111111";
+const bookingId = "22222222-2222-2222-2222-222222222222";
+
+const trackedBooking = {
+    bookingId,
+    screeningId,
+    filmTitle: "The Third Man",
+    auditorium: "Sal 1",
+    screeningStartsAtUtc: "2026-09-14T19:00:00Z",
+    customerEmail: "ada@example.com",
+    seats: ["A1"],
+    total: 145,
+    currency: "NOK",
+    // Deliberately still in flight: the data provider stops tracking a booking the moment
+    // every side of it has settled, so a Confirmed one would take its own flow panel off
+    // the page before this test could look at it.
+    status: "AwaitingPayment",
+    placedAtUtc: "2026-09-14T18:00:00.000Z",
+    seatsHeldAtUtc: "2026-09-14T18:00:00.200Z",
+    finishedAtUtc: null,
+    payBeforeUtc: "2099-01-01T00:00:00.000Z",
+    paymentReference: null,
+    cancellationReason: null,
+};
 
 const routes: Record<string, unknown> = {
     "/api/screenings": [{
@@ -52,7 +75,9 @@ beforeEach(() => {
 
     globalThis.fetch = ((input: RequestInfo | URL) => {
         const path = String(input);
-        const body = path.startsWith("/api/bookings") ? [] : routes[path];
+        const body = path === `/api/bookings/${bookingId}` ? trackedBooking
+            : path.startsWith("/api/bookings") ? []
+            : routes[path];
 
         return Promise.resolve(new Response(JSON.stringify(body ?? null), {
             status: 200,
@@ -105,8 +130,41 @@ test("the whole page mounts and draws what the gateway served", async () => {
     expect(screen.getByRole("heading", { name: "Bus tape" })).toBeDefined();
     expect(screen.getAllByText("Waiting for the first message…").length).toBeGreaterThan(0);
 
-    // Nothing is being tracked, so step 3 does not exist at all.
+    // Nothing is being tracked, so the flow section does not exist at all.
     expect(document.getElementById("flow-section")).toBeNull();
+});
+
+test("a ?booking= deep link draws the six steps, and a step is a handle", async () => {
+    history.replaceState(null, "", `/?booking=${bookingId}`);
+    render(<App />);
+
+    // Six steps, one service each, numbered the way the bus tape stamps them. The numerals
+    // are the join between the flow panel and the rail, so they are worth asserting.
+    const steps = await screen.findAllByRole("button", { name: /^Step \d, / });
+    expect(steps).toHaveLength(6);
+
+    expect(screen.getByText("Booking placed")).toBeDefined();
+    expect(screen.getByText("Seats held")).toBeDefined();
+    expect(screen.getByText("Payment requested")).toBeDefined();
+    expect(screen.getByText("Taking payment…")).toBeDefined();
+
+    // The line that says where the synchronous half of the flow ends.
+    expect(screen.getByText("HTTP stops here — everything below is a message")).toBeDefined();
+
+    // Clicking a step pins the highlight; clicking it again lets go. Nothing else on the
+    // page is pressed as a result — the other five steps are the same control.
+    const payment = steps[3]!;
+
+    expect(payment.getAttribute("aria-pressed")).toBe("false");
+
+    fireEvent.click(payment);
+    expect(payment.getAttribute("aria-pressed")).toBe("true");
+    expect(steps.filter(step => step.getAttribute("aria-pressed") === "true")).toHaveLength(1);
+
+    fireEvent.click(payment);
+    expect(payment.getAttribute("aria-pressed")).toBe("false");
+
+    history.replaceState(null, "", "/");
 });
 
 test("a ?screening= deep link reaches the seat map", async () => {

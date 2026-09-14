@@ -8,6 +8,7 @@
 import { entriesFor } from "../bus/tape-store.ts";
 import { useDemoData } from "../data/demo-data.tsx";
 import { RIVAL_EMAIL, useSelection } from "../data/selection.tsx";
+import { useEscapeClearsFocus } from "../hooks/useFlowFocus.ts";
 import { useTape } from "../hooks/useTape.ts";
 import { FlowPanel } from "./FlowPanel.tsx";
 
@@ -19,6 +20,10 @@ export function FlowSection() {
     // store is a module-level ring buffer, so without this the entriesFor() calls below
     // would keep returning rows nothing had asked React to draw.
     useTape();
+
+    // A pinned highlight is the one piece of page state with no visible control to undo it,
+    // so Escape has to work from wherever the reader's attention went next.
+    useEscapeClearsFocus();
 
     if (!tracked) return null;
 
@@ -40,11 +45,19 @@ export function FlowSection() {
 
     return (
         <section id="flow-section" aria-labelledby="step-flow">
-            <h2 id="step-flow"><span className="step">3</span>What happens next</h2>
+            <h2 id="step-flow">What happens next</h2>
+
+            <p className="aside flow-lede">
+                Six steps, one service each. Hover or tab onto a step &mdash; click to pin it
+                &mdash; and the messages that carried it light up on the bus tape and in the
+                waterfall below, with everything else dimmed. The number in each step is the
+                same number stamped on its rows in the tape.
+            </p>
 
             <div className="flow-columns">
                 <FlowPanel
                     panelId="flow-panel-mine"
+                    correlationId={tracked.mine}
                     label="You"
                     labelHidden={!racing}
                     booking={trackedBookings.mine}
@@ -57,6 +70,7 @@ export function FlowSection() {
                 {racing && (
                     <FlowPanel
                         panelId="flow-panel-rival"
+                        correlationId={tracked.rival}
                         label={<>Rival · <code>{RIVAL_EMAIL}</code></>}
                         labelHidden={false}
                         booking={trackedBookings.rival}

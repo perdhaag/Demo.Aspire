@@ -15,7 +15,7 @@ export function SeatingSection() {
 
     return (
         <section aria-labelledby="step-seats">
-            <h2 id="step-seats"><span className="step">2</span>Choose your seats</h2>
+            <h2 id="step-seats">Choose your seats</h2>
 
             <div className="panel seatmap-panel">
                 {seatMap && <SeatMap seatMap={seatMap} />}

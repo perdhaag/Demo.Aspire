@@ -33,8 +33,6 @@ public sealed class PaymentCapturedConsumer(
 
         if (result.IsFailure)
         {
-            // The hold lapsed while the card was being charged. The booking stays
-            // cancelled and a refund is owed: a real system would raise that here.
             logger.LogWarning(
                 "Payment {PaymentReference} arrived too late for booking {BookingId}: {Error}",
                 message.PaymentReference,

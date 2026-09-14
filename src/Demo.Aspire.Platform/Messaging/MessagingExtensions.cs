@@ -30,8 +30,6 @@ public static class MessagingExtensions
 
                 registration.AddConfigureEndpointsCallback((context, _, endpoint) =>
                 {
-                    // The inbox makes consumers idempotent: a redelivered message is
-                    // recognised and acknowledged without running the handler twice.
                     endpoint.UseEntityFrameworkOutbox<TDbContext>(context);
                 });
 
@@ -61,6 +59,12 @@ public static class MessagingExtensions
         {
             builder.Services.AddSingleton<BusTap>();
 
+            // Both, because which of the two fires depends on whether the context has an
+            // outbox — see the comments on BusTapSendObserver. In this demo it is always
+            // the send observer; the publish observer is the safety net.
+            builder.Services.AddSendObserver(provider =>
+                new BusTapSendObserver(provider.GetRequiredService<BusTap>(), serviceName));
+
             builder.Services.AddPublishObserver(provider =>
                 new BusTapPublishObserver(provider.GetRequiredService<BusTap>(), serviceName));
 
@@ -83,18 +87,12 @@ public static class MessagingExtensions
             {
                 registration.SetKebabCaseEndpointNameFormatter();
 
-                // Note for slice authors: MassTransit's assembly scan only picks up
-                // *public* consumer types. An internal consumer is registered silently as
-                // nothing at all — the bus starts, no receive endpoint is created, and the
-                // messages it should have handled are dropped by the broker.
                 configure?.Invoke(registration);
 
                 registration.UsingRabbitMq((context, bus) =>
                 {
                     bus.Host(new Uri(brokerUri));
 
-                    // Transient faults (a locked row, a blipping connection) are worth a
-                    // few immediate retries; anything that survives them goes to _error.
                     bus.UseMessageRetry(retry => retry.Intervals(200, 500, 1_000, 2_000, 5_000));
                     bus.ConfigureEndpoints(context);
                 });

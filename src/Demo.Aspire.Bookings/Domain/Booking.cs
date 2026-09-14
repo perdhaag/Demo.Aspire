@@ -111,7 +111,7 @@ public sealed class Booking : AggregateRoot<BookingId>
     {
         if (Status is BookingStatus.AwaitingPayment)
         {
-            return Result.Success(); // Redelivered message; the decision already stands.
+            return Result.Success();
         }
 
         if (Status is not BookingStatus.Placed)

@@ -189,13 +189,15 @@ h2 {
     color: var(--ink-soft);
 }
 
-.step {
+/* The numerals 1-6 now mean "flow step" and nothing else, so the section headings lost
+   theirs. The chaos strip's ⚡ is the only mark of this shape left. */
+.chaos-mark {
     display: grid;
     place-items: center;
     width: 1.5rem;
     height: 1.5rem;
     border-radius: 50%;
-    background: var(--accent);
+    background: var(--warn);
     color: var(--panel);
     font-size: .72rem;
     letter-spacing: 0;
@@ -429,6 +431,9 @@ h2 {
 .secondary:disabled { opacity: .4; cursor: default; }
 
 /* ── Flow timeline ────────────────────────────────────────────────────────── */
+/* Six steps, one service each. Every step is also a handle: hovering, tabbing onto or
+   clicking one sets a focus (flow/focus.ts) and everything on the page that is not part
+   of that step goes to data-dim="true" — see "Dimming" at the end of this file. */
 
 .flow-columns {
     display: grid;
@@ -448,6 +453,8 @@ h2 {
     }
 }
 
+.flow-lede { margin-block: 0 14px; }
+
 .flow-panel-label {
     margin: 0 0 10px;
     font-weight: 600;
@@ -459,53 +466,216 @@ h2 {
 
 .flow { list-style: none; margin: 0; padding: 0; }
 
-.flow li {
+.flow > li {
     display: grid;
-    grid-template-columns: 1.4rem 1fr auto;
+    grid-template-columns: 1.5rem 1fr auto;
     gap: 4px 12px;
     align-items: start;
-    padding-bottom: 16px;
+    padding: 4px 0 16px;
     position: relative;
+    border-radius: 8px;
 }
 
-.flow li:not(:last-child)::before {
+.flow > li:not(:last-child)::before {
     content: "";
     position: absolute;
-    left: .65rem;
-    top: 1.5rem;
+    left: .7rem;
+    top: 1.9rem;
     bottom: 0;
     width: 1px;
     background: var(--line);
 }
 
+/* A transparent control laid over the whole row. The row itself stays a grid of spans,
+   and the keyboard gets a real button with a real pressed state rather than a <li> with
+   a tabindex bolted on. */
+.step-hit {
+    position: absolute;
+    inset: -2px 0;
+    z-index: 2;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    padding: 0;
+    cursor: pointer;
+}
+
+.step-hit:focus-visible { outline: 2px solid var(--accent); outline-offset: 0; }
+
+.flow > li[data-focused="true"] { background: var(--accent-soft); }
+
+/* The ordinal, not a tick. It is the cross-reference: the same number is stamped on every
+   bus-tape row belonging to this step, which is the whole point of the redesign. */
 .dot {
     grid-row: span 2;
-    width: 1.4rem;
-    height: 1.4rem;
+    width: 1.5rem;
+    height: 1.5rem;
     border-radius: 50%;
     border: 1px solid var(--line-strong);
     background: var(--panel);
     display: grid;
     place-items: center;
-    font-size: .7rem;
+    font-size: .72rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
     color: var(--ink-faint);
     z-index: 1;
 }
 
-.flow li[data-state="done"] .dot { background: var(--ok-soft); border-color: var(--ok); color: var(--ok); }
-.flow li[data-state="failed"] .dot { background: var(--bad-soft); border-color: var(--bad); color: var(--bad); }
-.flow li[data-state="pending"] .dot { animation: pulse 1.4s ease-in-out infinite; }
+.flow > li[data-state="done"] .dot { background: var(--ok-soft); border-color: var(--ok); color: var(--ok); }
+.flow > li[data-state="failed"] .dot { background: var(--bad-soft); border-color: var(--bad); color: var(--bad); }
+.flow > li[data-state="pending"] .dot {
+    border-color: var(--tape-row-color, var(--accent));
+    color: var(--tape-row-color, var(--accent));
+    animation: pulse 1.4s ease-in-out infinite;
+}
+.flow > li[data-state="skipped"] .dot { opacity: .45; border-style: dashed; }
 
 @keyframes pulse { 50% { opacity: .35; } }
-@media (prefers-reduced-motion: reduce) { .flow li[data-state="pending"] .dot { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .flow > li[data-state="pending"] .dot { animation: none; } }
 
 .flow .what { font-weight: 500; }
-.flow li[data-state="waiting"] .what { color: var(--ink-faint); font-weight: 400; }
+.flow > li[data-state="waiting"] .what,
+.flow > li[data-state="skipped"] .what { color: var(--ink-faint); font-weight: 400; }
+.flow > li[data-state="skipped"] .what { text-decoration: line-through; text-decoration-color: var(--line-strong); }
+
+/* ✓ / ✕ beside the headline rather than inside the dot, because the dot now carries the
+   number and the number has to stay readable after the step has settled. */
+.flow .marker { margin-left: 7px; font-size: .82rem; }
+.flow > li[data-state="done"] .marker { color: var(--ok); }
+.flow > li[data-state="failed"] .marker { color: var(--bad); }
+
 .flow .who { grid-column: 2; color: var(--ink-soft); font-size: .82rem; }
 .flow .when { color: var(--ink-faint); font-size: .78rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
 
-/* The last 30s of a seat hold, ticking down live — see tickHoldCountdowns in app.js. */
-.flow li.countdown-warn .who { color: var(--warn); font-weight: 500; }
+/* The last 30s of a seat hold, ticking down live — see PayCountdownStep in FlowPanel.tsx. */
+.flow > li.countdown-warn .who { color: var(--warn); font-weight: 500; }
+
+/* ── What a step touched ──────────────────────────────────────────────────── */
+/* Chips always, prose only while the step is focused. The chips say *that* Postgres and
+   Redis were involved; the prose under them says what for, and unfolding it on hover is
+   what keeps six steps' worth of infrastructure from being a wall of text at rest. */
+
+.chips {
+    grid-column: 2 / -1;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    margin-top: 6px;
+}
+
+.chip-transport,
+.chip-infra,
+.chip-msg {
+    padding: 1px 7px;
+    border-radius: 999px;
+    font-size: .7rem;
+    line-height: 1.5;
+    border: 1px solid var(--line);
+    color: var(--ink-soft);
+    white-space: nowrap;
+}
+
+.chip-transport {
+    font-weight: 600;
+    color: var(--accent);
+    background: var(--accent-soft);
+    border-color: transparent;
+}
+
+/* The one step reached over HTTP, and the one reached by a timer, are the two worth
+   being able to pick out without reading. */
+.chip-transport[data-transport="bus"] { color: var(--ink-soft); background: transparent; border-color: var(--line); font-weight: 500; }
+.chip-transport[data-transport="clock"] { color: var(--warn); background: var(--warn-soft); }
+
+.chip-msg {
+    color: var(--tape-row-color, var(--ink-soft));
+    border-color: currentcolor;
+    font-family: ui-monospace, "SF Mono", "Cascadia Code", Menlo, monospace;
+}
+
+.step-detail { display: none; }
+
+.flow > li[data-focused="true"] .step-detail {
+    display: grid;
+    grid-column: 2 / -1;
+    gap: 2px 10px;
+    margin: 8px 0 0;
+    padding-left: 10px;
+    border-left: 2px solid var(--line);
+    font-size: .78rem;
+}
+
+.step-detail > div { display: grid; grid-template-columns: 5.5rem 1fr; gap: 10px; }
+.step-detail dt { color: var(--ink-faint); font-weight: 600; }
+.step-detail dd { margin: 0; color: var(--ink-soft); }
+
+/* ── Step 6: one message, two services ────────────────────────────────────── */
+/* Screenings sells the seats and Notifications sends the ticket off the same
+   BookingConfirmed, neither aware of the other. It is the clearest argument in the demo
+   for publishing rather than calling, so it is drawn as a fan-out rather than flattened
+   into one line. */
+
+.fanout {
+    grid-column: 2 / -1;
+    list-style: none;
+    margin: 8px 0 0;
+    padding: 0;
+    display: grid;
+    gap: 4px;
+}
+
+.fanout li {
+    display: grid;
+    grid-template-columns: 5.6rem 1fr auto;
+    gap: 2px 8px;
+    align-items: baseline;
+    padding: 4px 0 0;
+    border-left: 2px solid var(--tape-row-color, var(--line));
+    padding-left: 9px;
+}
+
+.flow .fanout li::before { content: none; }
+
+.fanout-svc {
+    color: var(--tape-row-color, var(--ink-soft));
+    font-size: .68rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+}
+
+.fanout-what { font-size: .84rem; }
+.fanout li[data-state="waiting"] .fanout-what { color: var(--ink-faint); }
+.fanout-when { color: var(--ink-faint); font-size: .74rem; font-variant-numeric: tabular-nums; }
+.fanout-note { grid-column: 2 / -1; color: var(--ink-soft); font-size: .76rem; }
+
+/* ── Where HTTP stops ─────────────────────────────────────────────────────── */
+/* Above this line a customer is waiting on a socket; below it, five services react to
+   each other and nobody is waiting on anything. It is the sentence the whole demo exists
+   to make, so it gets a line of its own. */
+
+.flow > li.flow-boundary {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: -6px 0 14px;
+    padding: 0;
+    color: var(--ink-faint);
+    font-size: .72rem;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+}
+
+.flow > li.flow-boundary::before { content: none; }
+
+.flow > li.flow-boundary::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: repeating-linear-gradient(
+        to right, var(--line-strong) 0 4px, transparent 4px 8px);
+}
 
 /* ── Trace waterfall ──────────────────────────────────────────────────────── */
 /* Built from the bus tape's own timestamps (see drawWaterfall in app.js), not from a
@@ -591,8 +761,6 @@ h2 {
 .wf-caption a { color: var(--accent); white-space: nowrap; }
 
 /* ── Chaos strip ──────────────────────────────────────────────────────────── */
-
-.chaos-mark { background: var(--warn); color: var(--panel); }
 
 .chaos-toggles {
     display: flex;
@@ -794,7 +962,7 @@ h2 {
 
 .tape-row {
     display: grid;
-    grid-template-columns: auto 1fr auto;
+    grid-template-columns: auto auto 1fr auto;
     align-items: baseline;
     gap: 4px 8px;
     padding: 6px 4px;
@@ -803,6 +971,26 @@ h2 {
 }
 
 .tape-row[data-tracked="true"] { background: var(--accent-soft); }
+
+/* The step ordinal, stamped only on the booking being watched: the number means nothing
+   beside somebody else's flow, and the rail already carries plenty. It is the same numeral
+   the flow panel puts in that step's dot — which is the whole join between the two. */
+.tape-step {
+    grid-row: span 2;
+    align-self: start;
+    width: 1.15rem;
+    height: 1.15rem;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    border: 1px solid var(--tape-row-color, var(--line-strong));
+    color: var(--tape-row-color, var(--ink-faint));
+    font-size: .66rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+
+.tape-step.is-blank { border-color: transparent; }
 
 .tape-row .svc {
     grid-row: span 2;
@@ -822,7 +1010,7 @@ h2 {
 .tape-row .event { font-weight: 500; }
 .tape-row[data-kind="Faulted"] .event { color: var(--bad); }
 .tape-row .at { color: var(--ink-faint); font-variant-numeric: tabular-nums; white-space: nowrap; }
-.tape-row .detail { grid-column: 2 / span 2; color: var(--ink-soft); font-size: .74rem; }
+.tape-row .detail { grid-column: 3 / span 2; color: var(--ink-soft); font-size: .74rem; }
 
 .tape-empty { color: var(--ink-faint); font-size: .84rem; margin: auto; padding: 20px 0; }
 
@@ -908,4 +1096,40 @@ footer p { color: var(--ink-faint); font-size: .8rem; padding-block: 20px; margi
 /* Clear of the bus-tape dock, which occupies the bottom of a narrow screen. */
 @media (max-width: 900px) {
     .toast { bottom: calc(5.5rem + env(safe-area-inset-bottom, 0px)); }
+}
+
+/* ── Dimming ──────────────────────────────────────────────────────────────── */
+/* One focused step, three places it shows up. The flow step, the bus-tape rows that
+   carried it and the waterfall bars that drew it all stay lit; everything else steps back.
+   Which rows belong to which step is decided once, in flow/choreography.ts, so these three
+   rules cannot fall out of step with each other.
+
+   Opacity rather than colour, because the rows being dimmed are still live: messages keep
+   arriving on the tape while a step is pinned, and they should look quieted, not stopped. */
+
+.flow > li[data-dim="true"],
+.tape-row[data-dim="true"],
+.wf-bar[data-dim="true"],
+.wf-gap[data-dim="true"] {
+    opacity: .22;
+}
+
+/* On the elements themselves, not on the dimmed state: a rule that only matches while
+   dimmed fades out and then snaps back. */
+.flow > li,
+.tape-row,
+.wf-bar,
+.wf-gap {
+    transition: opacity .12s ease-out;
+}
+
+/* A dimmed tape row keeps its background but loses the emphasis, so a pinned step does not
+   leave the rest of your own booking looking like somebody else's traffic. */
+.tape-row[data-dim="true"][data-tracked="true"] { background: transparent; }
+
+@media (prefers-reduced-motion: reduce) {
+    .flow > li,
+    .tape-row,
+    .wf-bar,
+    .wf-gap { transition: none; }
 }

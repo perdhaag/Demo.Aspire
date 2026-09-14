@@ -9,9 +9,6 @@ using Microsoft.AspNetCore.Routing;
 
 namespace Demo.Aspire.Screenings.Features.ScheduleScreening;
 
-// A vertical slice: the request, its input rules, the behaviour and the HTTP surface
-// for one capability, in one file. Adding a feature never means editing another one.
-
 public sealed record ScheduleScreeningRequest(
     string FilmTitle,
     string Auditorium,

@@ -15,8 +15,6 @@ builder.AddRedisClient(ResourceNames.Cache);
 
 builder.AddPlatform(Assembly.GetExecutingAssembly());
 
-// No database here, so no outbox: this context only reacts, it never decides anything
-// it would need to recover after a crash.
 builder.AddMessaging(bus => bus.AddConsumers(Assembly.GetExecutingAssembly()));
 builder.AddBusTap(ResourceNames.Services.Notifications);
 

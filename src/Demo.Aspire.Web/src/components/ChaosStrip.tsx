@@ -27,7 +27,7 @@ export function ChaosStrip() {
     return (
         <section className="chaos" aria-labelledby="chaos-heading">
             <h2 id="chaos-heading">
-                <span className="step chaos-mark" aria-hidden="true">⚡</span>Payments: demo control
+                <span className="chaos-mark" aria-hidden="true">⚡</span>Payments: demo control
             </h2>
             <div className="panel">
                 <div className="chaos-toggles" role="group" aria-label="Chaos controls for Payments">

@@ -13,8 +13,6 @@ public sealed class ScreeningsDbContext(DbContextOptions<ScreeningsDbContext> op
         modelBuilder.HasDefaultSchema("screenings");
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(ScreeningsDbContext).Assembly);
 
-        // The transactional outbox and inbox live in this context's own schema, so a
-        // published message and the seat change that caused it share one transaction.
         modelBuilder.AddInboxStateEntity();
         modelBuilder.AddOutboxMessageEntity();
         modelBuilder.AddOutboxStateEntity();

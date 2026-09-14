@@ -33,8 +33,6 @@ public sealed class SellSeatsConsumer(
 
         if (result.IsFailure)
         {
-            // The hold lapsed before the confirmation arrived. Bookings owns the refund
-            // decision; this context has nothing left to do.
             logger.LogWarning("Cannot sell seats for {BookingId}: {Error}", message.BookingId, result.Error);
             return;
         }

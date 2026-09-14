@@ -11,7 +11,7 @@ export function ScreeningList() {
 
     return (
         <section aria-labelledby="step-screenings">
-            <h2 id="step-screenings"><span className="step">1</span>Tonight&rsquo;s screenings</h2>
+            <h2 id="step-screenings">Tonight&rsquo;s screenings</h2>
 
             <div className="screenings">
                 {screenings.length === 0

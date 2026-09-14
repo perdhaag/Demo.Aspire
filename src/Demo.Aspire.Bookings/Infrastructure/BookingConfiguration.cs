@@ -28,8 +28,6 @@ internal sealed class BookingConfiguration : IEntityTypeConfiguration<Booking>
             .HasMaxLength(256)
             .IsRequired();
 
-        // Seats are a value, not a child table: they are chosen once and never edited
-        // individually, so storing them as one column keeps the aggregate honest.
         builder.Property(booking => booking.Seats)
             .HasConversion(new SeatListConverter(), new SeatListComparer())
             .HasColumnName("seats")

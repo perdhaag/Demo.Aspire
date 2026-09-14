@@ -112,6 +112,10 @@ after that happens on the bus:
 | 6 | Screenings | Turns the hold into a sale, or puts the seats back | — |
 | 6 | Notifications | Sends the ticket or the apology over SMTP | — |
 
+Those numbers are the ones the UI draws. Step 6 is two services rather than a seventh
+step because it is one message read by two readers: Screenings and Notifications both
+consume `BookingConfirmed`, independently, and neither knows the other exists.
+
 A few unhappy paths — and one race — are worth triggering on purpose:
 
 * **Declined payment** — book with an address whose local part contains `decline`, e.g.
@@ -119,20 +123,37 @@ A few unhappy paths — and one race — are worth triggering on purpose:
   seats and Notifications mails an apology.
 * **Expired hold** — a hold lives for three minutes by default. `SeatHoldSweeper` turns
   that deadline into a `SeatHoldExpired` event, which cancels the booking. It is the only
-  thing in the system that is driven by the clock rather than by a message. Flip the
+  thing in the system that is driven by the clock rather than by a message, which is also
+  the only place a correlation id has to be set by hand: there is no inbound message to
+  take one from, so `SeatHoldLapsedPublisher` stamps the booking the hold belonged to. Flip the
   masthead's **Short holds (20s)** switch first if you don't want to wait three minutes
   for it.
 * **A broken card network** — the chaos strip under the seat map can pause, slow, or
-  break Payments on purpose (see [Watching it happen](#watching-it-happen)).
+  break Payments on purpose (see [Watching it happen](#watching-it-happen)). A step the
+  flow never reached because of it reads as *skipped*, not as still waiting.
 * **Two customers, one seat** — **Race a rival** books the seats you picked twice at
   once, as you and as `rival@example.com`. Exactly one of you keeps them.
 
 ## Watching it happen
 
-Five things exist purely so the choreography is visible instead of asserted:
+Six things exist purely so the choreography is visible instead of asserted:
 
+* **One step, three views.** The flow panel, the bus tape and the trace waterfall are
+  three drawings of the same six steps, and they say so: hover or tab onto a step — click
+  to pin it, Escape to let go — and the messages that carried it stay lit on the tape and
+  in the waterfall while everything else dims. Every tape row belonging to the booking you
+  are watching is stamped with its step's number, so the join is readable even with nothing
+  focused. Which row belongs to which step is decided in exactly one place,
+  `src/Demo.Aspire.Web/src/flow/choreography.ts`, so the three cannot drift apart. A focused
+  step also unfolds what it touched on the way past: the databases, the cache, the bus, the
+  mail — and, for the first step only, the one HTTP call in the whole flow.
 * **The bus tape** (the rail beside the page) streams every integration event as it is
-  published or consumed, over Server-Sent Events (`GET /api/events`). It is what the
+  published or consumed, over Server-Sent Events (`GET /api/events`). A *published* row is
+  written when the message actually leaves — which, with the outbox in front of it, is when
+  the delivery service puts it on RabbitMQ, not when the handler called `Publish`. That is
+  why `BusTapSendObserver` is a send observer reading the envelope rather than the publish
+  observer beside it: `UseBusOutbox()` means `IPublishObserver` never fires for anything in
+  this system at all. It is what the
   page actually reacts to — placing a booking no longer starts a fast poll; a tape entry
   for the booking you are watching schedules the one refresh that matters, and the poll
   loop underneath is only a slow safety net. On a narrow screen the rail becomes a dock
@@ -157,7 +178,8 @@ Five things exist purely so the choreography is visible instead of asserted:
 * **The trace waterfall**, under each flow, is reconstructed from the bus tape's own
   timestamps — one lane per service, and a hairline above the lanes for the gap between
   a message being published and it being picked up, the actual argument for asynchronous
-  messaging made visible. It says plainly that it is reconstructed, not measured, because
+  messaging made visible. A message with two consumers draws a bar in each of their lanes,
+  because it really did start two services' work at once. It says plainly that it is reconstructed, not measured, because
   five processes' clocks agree to within a millisecond or two on one machine and nothing
   more; the link beside it opens the real thing in the Aspire dashboard.
 

@@ -10,8 +10,6 @@ public sealed class CorrelationContext
 {
     public Guid Current
     {
-        // C# 14's `field` keyword: a backing field without declaring one, which is just
-        // enough to make the property lazy.
         get => field == Guid.Empty ? field = Guid.CreateVersion7() : field;
         set;
     }

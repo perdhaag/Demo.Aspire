@@ -31,7 +31,6 @@ public sealed class PersistenceModelTests
         script.ShouldContain("ticket_price_amount");
         script.ShouldContain("ticket_price_currency");
         script.ShouldContain("seat_number");
-        // MassTransit's transactional outbox and inbox live in the same schema.
         script.ShouldContain("OutboxMessage");
         script.ShouldContain("InboxState");
     }

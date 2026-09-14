@@ -57,9 +57,7 @@ public static class ServiceDefaultsExtensions
             .WithTracing(tracing => tracing
                 .AddSource("Demo.Aspire.*")
                 .AddSource("MassTransit")
-                .AddAspNetCoreInstrumentation(options =>
-                    // Health probes fire every few seconds and would drown the traces.
-                    options.Filter = context =>
+                .AddAspNetCoreInstrumentation(options => options.Filter = context =>
                         !context.Request.Path.StartsWithSegments(HealthEndpointPath)
                         && !context.Request.Path.StartsWithSegments(AlivenessEndpointPath))
                 .AddHttpClientInstrumentation());

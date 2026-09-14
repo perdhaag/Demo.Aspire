@@ -23,15 +23,12 @@ internal sealed class ScreeningConfiguration : IEntityTypeConfiguration<Screenin
         builder.Property(screening => screening.Auditorium).HasMaxLength(100).IsRequired();
         builder.Property(screening => screening.StartsAtUtc).IsRequired();
 
-        // Money stays a single concept in the model and becomes two columns in the table.
         builder.ComplexProperty(screening => screening.TicketPrice, price =>
         {
             price.Property(money => money.Amount).HasColumnName("ticket_price_amount").HasPrecision(18, 2);
             price.Property(money => money.Currency).HasColumnName("ticket_price_currency").HasMaxLength(3);
         });
 
-        // PostgreSQL's row version. Two concurrent holds on the same screening cannot
-        // both win: the loser gets a DbUpdateConcurrencyException and is retried.
         builder.Property<uint>("Version").IsRowVersion().HasColumnName("xmin");
 
         builder.HasMany(screening => screening.Seats)
@@ -68,8 +65,6 @@ internal sealed class SeatConfiguration : IEntityTypeConfiguration<Seat>
             .HasMaxLength(4)
             .IsRequired();
 
-        // Stored as text: a status is easier to read in psql than 0, 1, 2, and adding a
-        // new state later does not silently renumber the existing rows.
         builder.Property(seat => seat.Status).HasConversion<string>().HasMaxLength(16).IsRequired();
 
         builder.Property(seat => seat.HeldBy).HasConversion(new BookingReferenceConverter());
