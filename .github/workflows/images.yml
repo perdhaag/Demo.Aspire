@@ -56,11 +56,15 @@ jobs:
         id: tag
         run: echo "value=main-$(git rev-parse --short HEAD)-$(git show -s --format=%ct HEAD)" >> "$GITHUB_OUTPUT"
 
-      # Credentials go in explicitly rather than through `docker login`. The SDK can read
-      # ~/.docker/config.json, but doing so failed against ghcr.io with CONTAINER1016 even
-      # after a successful login. The PUSH_ prefix matters: the generic
-      # DOTNET_CONTAINER_REGISTRY_UNAME/PWORD pair would also be offered to the anonymous
-      # pull of the mcr.microsoft.com base image.
+      # Credentials are handed to the SDK directly rather than through `docker login`, so
+      # nothing depends on how ~/.docker/config.json happens to be written. The PUSH_ prefix
+      # matters: the generic DOTNET_CONTAINER_REGISTRY_UNAME/PWORD pair would also be offered
+      # when pulling the base image, which comes anonymously from mcr.microsoft.com.
+      #
+      # RepositoryUrl is what makes the SDK stamp org.opencontainers.image.source onto the
+      # image, and that label is what GHCR uses to link a package back to this repository.
+      # The link is what gives GITHUB_TOKEN access: an unlinked package is not writable with
+      # it however the credentials are supplied, which is what CONTAINER1016 meant here.
       - name: Publish ${{ matrix.service.name }}
         env:
           DOTNET_CONTAINER_PUSH_REGISTRY_UNAME: ${{ github.actor }}
@@ -73,7 +77,8 @@ jobs:
             /t:PublishContainer \
             -p:ContainerRegistry=${{ env.REGISTRY }} \
             -p:ContainerRepository=${{ env.REPOSITORY }}/${{ matrix.service.name }} \
-            -p:ContainerImageTag=${{ steps.tag.outputs.value }}
+            -p:ContainerImageTag=${{ steps.tag.outputs.value }} \
+            -p:RepositoryUrl=https://github.com/${{ github.repository }}
 
       - name: Summary
         run: echo "pushed ${{ env.REGISTRY }}/${{ env.REPOSITORY }}/${{ matrix.service.name }}:${{ steps.tag.outputs.value }}" >> "$GITHUB_STEP_SUMMARY"
