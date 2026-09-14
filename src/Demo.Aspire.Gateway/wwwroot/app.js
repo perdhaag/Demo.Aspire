@@ -232,22 +232,26 @@ function updateTally() {
         : `${count} × ${money(price, state.seatMap.currency)} = ${money(count * price, state.seatMap.currency)}`;
 
     el('book').disabled = count === 0;
+    el('race').disabled = count === 0;
+}
+
+const RIVAL_EMAIL = 'rival@example.com';
+
+function placeBooking(customerEmail, seats) {
+    return api('/bookings', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ screeningId: state.screeningId, customerEmail, seats }),
+    });
 }
 
 el('checkout').onsubmit = async event => {
     event.preventDefault();
     el('book').disabled = true;
+    el('race').disabled = true;
 
     try {
-        const placed = await api('/bookings', {
-            method: 'POST',
-            headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({
-                screeningId: state.screeningId,
-                customerEmail: el('email').value.trim(),
-                seats: [...state.selected].sort(),
-            }),
-        });
+        const placed = await placeBooking(el('email').value.trim(), [...state.selected].sort());
 
         track(placed.bookingId);
         state.selected.clear();
@@ -258,6 +262,41 @@ el('checkout').onsubmit = async event => {
     } finally {
         updateTally();
     }
+};
+
+// Both bookings ask for the same seats on the same screening in the same instant.
+// Screenings' seat map is the one consistency boundary in this system (see
+// Screening.HoldSeats), so exactly one of the two can actually hold them — the other's
+// flow shows a rejected hold rather than a rollback, because there was never anything
+// to roll back.
+el('race').onclick = async () => {
+    el('book').disabled = true;
+    el('race').disabled = true;
+
+    const seats = [...state.selected].sort();
+    const email = el('email').value.trim();
+
+    const [mine, rival] = await Promise.allSettled([
+        placeBooking(email, seats),
+        placeBooking(RIVAL_EMAIL, seats),
+    ]);
+
+    if (mine.status === 'rejected' && rival.status === 'rejected') {
+        toast(mine.reason.message);
+    } else {
+        trackRace(
+            mine.status === 'fulfilled' ? mine.value.bookingId : null,
+            rival.status === 'fulfilled' ? rival.value.bookingId : null);
+
+        if (mine.status === 'rejected') toast(`Your booking: ${mine.reason.message}`);
+        if (rival.status === 'rejected') toast(`Rival's booking: ${rival.reason.message}`);
+
+        state.selected.clear();
+        await refresh();
+        el('flow-section').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    updateTally();
 };
 
 /* ── Chaos: a demo switch on Payments' simulated card network ────────────── */
@@ -299,19 +338,48 @@ el('chaos-fail').onclick = () => setChaosMode('Failing');
 
 /* ── Step 3: the flow ─────────────────────────────────────────────────────── */
 
+const FLOW_PANELS = {
+    mine: { list: el('flow-mine'), note: el('flow-note-mine') },
+    rival: { list: el('flow-rival'), note: el('flow-note-rival') },
+};
+
+function clearFlowPanels() {
+    for (const panel of Object.values(FLOW_PANELS)) {
+        replace(panel.list);
+        panel.note.textContent = '';
+    }
+}
+
 function track(bookingId) {
-    state.tracked = bookingId;
+    clearFlowPanels();
+    state.tracked = { mine: bookingId, rival: null };
     el('flow-section').hidden = false;
+    el('flow-label-mine').hidden = true;
+    el('flow-panel-rival').hidden = true;
 
     const url = new URL(location.href);
     url.searchParams.set('booking', bookingId);
     history.replaceState(null, '', url);
 }
 
+// "Race a rival" tracks two bookings at once, so the two flow panels both get a label
+// and the URL stops pointing at a single booking — there is no one booking to deep-link
+// to once there are two racing for the same seats.
+function trackRace(mineId, rivalId) {
+    clearFlowPanels();
+    state.tracked = { mine: mineId, rival: rivalId };
+    el('flow-section').hidden = false;
+    el('flow-label-mine').hidden = false;
+    el('flow-panel-rival').hidden = false;
+
+    const url = new URL(location.href);
+    url.searchParams.delete('booking');
+    history.replaceState(null, '', url);
+}
 
 // Each step names the service that made the decision, because that is the thing worth
 // seeing: no single component is driving this, they are just reacting to each other.
-function drawFlow(booking, payment, mail) {
+function drawFlow(booking, payment, mail, panel) {
     if (!booking) return;
 
     const placed = booking.placedAtUtc;
@@ -372,7 +440,7 @@ function drawFlow(booking, payment, mail) {
         },
     ];
 
-    replace(el('flow'), steps.map(step => {
+    replace(panel.list, steps.map(step => {
         const item = node('li', {},
             node('span', { className: 'dot', textContent: markerFor(step.state) }),
             node('span', { className: 'what', textContent: step.what }),
@@ -389,7 +457,7 @@ function drawFlow(booking, payment, mail) {
         return item;
     }));
 
-    el('flow-note').textContent = booking.status === 'Confirmed'
+    panel.note.textContent = booking.status === 'Confirmed'
         ? `Seats ${booking.seats.join(', ')} for ${booking.filmTitle} are yours. The ticket is in the Mailpit inbox, linked from the Aspire dashboard.`
         : failed
             ? 'The seats went straight back on sale — that is the compensating action, not a rollback.'
@@ -440,11 +508,11 @@ const MAX_TAPE_ROWS = 200;
 
 let tapeRefreshTimer;
 
-// state.tracked is one booking id today and becomes { mine, rival } once "race a
-// rival" is in play; this is the one place that needs to know which shape it has.
+// state.tracked is { mine, rival } — rival is null outside of "Race a rival" — since
+// the correlation id for a whole booking's flow is the booking id itself (see
+// PlaceBookingHandler, which stamps it onto CorrelationContext at the very start).
 function trackedCorrelationIds() {
-    if (!state.tracked) return [];
-    return typeof state.tracked === 'string' ? [state.tracked] : Object.values(state.tracked).filter(Boolean);
+    return state.tracked ? [state.tracked.mine, state.tracked.rival].filter(Boolean) : [];
 }
 
 function tapeRowLabel(entry) {
@@ -611,15 +679,32 @@ async function refresh() {
     if (chaos) applyChaosMode(chaos.mode);
 
     if (state.tracked) {
-        const booking = bookings.find(candidate => candidate.bookingId === state.tracked)
-            ?? await api(`/bookings/${state.tracked}`).catch(() => null);
+        const resolveBooking = async id => id && (
+            bookings.find(candidate => candidate.bookingId === id)
+                ?? await api(`/bookings/${id}`).catch(() => null));
 
-        drawFlow(
-            booking,
-            payments.find(payment => payment.bookingId === state.tracked),
-            mail.find(entry => entry.bookingId === state.tracked));
+        const { mine, rival } = state.tracked;
+        const [mineBooking, rivalBooking] = await Promise.all([resolveBooking(mine), resolveBooking(rival)]);
 
-        if (settled(booking)) {
+        if (mineBooking) {
+            drawFlow(
+                mineBooking,
+                payments.find(payment => payment.bookingId === mine),
+                mail.find(entry => entry.bookingId === mine),
+                FLOW_PANELS.mine);
+        }
+
+        if (rival && rivalBooking) {
+            drawFlow(
+                rivalBooking,
+                payments.find(payment => payment.bookingId === rival),
+                mail.find(entry => entry.bookingId === rival),
+                FLOW_PANELS.rival);
+        }
+
+        // Both sides need to be finished before the seat map is worth reloading — a
+        // race that is still in flight is exactly the moment not to.
+        if (settled(mineBooking) && (!rival || settled(rivalBooking))) {
             await Promise.all([loadScreenings(), loadSeatMap()]);
             state.tracked = null;
         }

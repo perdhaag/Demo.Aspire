@@ -63,12 +63,17 @@
                     <strong id="tally-seats">No seats selected</strong>
                     <span id="tally-total"></span>
                 </div>
-                <button class="primary" type="submit" id="book" disabled>Book seats</button>
+                <div class="checkout-actions">
+                    <button type="button" class="secondary" id="race" disabled>Race a rival</button>
+                    <button class="primary" type="submit" id="book" disabled>Book seats</button>
+                </div>
             </form>
             <p class="aside">
                 Book as an address containing <code>decline</code> &mdash; say
                 <code>decline@example.com</code> &mdash; and Payments refuses the charge, so
-                you can watch the seats go back on sale.
+                you can watch the seats go back on sale. <strong>Race a rival</strong> books
+                the same seats as <code>rival@example.com</code> in the same instant, so you
+                can watch Screenings let exactly one of you keep them.
             </p>
         </div>
     </section>
@@ -88,12 +93,22 @@
         </div>
     </section>
 
-    <!-- Step 3 ─ the point of the demo: the choreography, as it happens. -->
+    <!-- Step 3 ─ the point of the demo: the choreography, as it happens. Two panels
+         exist so "Race a rival" can show both flows side by side; the second stays
+         hidden and the first carries no label for an ordinary, un-raced booking. -->
     <section id="flow-section" aria-labelledby="step-flow" hidden>
         <h2 id="step-flow"><span class="step">3</span>What happens next</h2>
-        <div class="panel">
-            <ol class="flow" id="flow"></ol>
-            <p class="aside" id="flow-note"></p>
+        <div class="flow-columns">
+            <div class="panel flow-panel" id="flow-panel-mine">
+                <p class="flow-panel-label" id="flow-label-mine" hidden>You</p>
+                <ol class="flow" id="flow-mine"></ol>
+                <p class="aside" id="flow-note-mine"></p>
+            </div>
+            <div class="panel flow-panel" id="flow-panel-rival" hidden>
+                <p class="flow-panel-label">Rival &middot; <code>rival@example.com</code></p>
+                <ol class="flow" id="flow-rival"></ol>
+                <p class="aside" id="flow-note-rival"></p>
+            </div>
         </div>
     </section>
 
