@@ -11,4 +11,57 @@
         <ProjectReference Include="..\Demo.Aspire.ServiceDefaults\Demo.Aspire.ServiceDefaults.csproj" />
     </ItemGroup>
 
+    <!-- ── The front end ────────────────────────────────────────────────────────────
+
+         wwwroot is build output, not source: the React app in ../Demo.Aspire.Web is
+         bundled into it by bun as part of this project's build, so `aspire run` stays a
+         single command and nobody has to remember a second one. See
+         docs/react-ui-plan.md.
+
+         Pass -p:SkipWebUi=true to build the gateway against whatever is already sitting
+         in wwwroot — useful on a machine without bun, and for a CI job that only needs
+         the C# to compile. -->
+
+    <PropertyGroup>
+        <WebUiRoot>$(MSBuildThisFileDirectory)..\Demo.Aspire.Web\</WebUiRoot>
+        <WebUiOutput>$(MSBuildThisFileDirectory)wwwroot\next\index.html</WebUiOutput>
+    </PropertyGroup>
+
+    <!-- bun is installed by mise (see mise.toml). Whether it is on PATH depends on
+         whether the shell running the build has mise activated — an IDE launched from a
+         desktop menu generally has not — so fall back to asking mise directly before
+         giving up. -->
+    <Target Name="ResolveBun" Condition="'$(SkipWebUi)' != 'true'">
+        <Exec Command="bun --version" ContinueOnError="true" IgnoreExitCode="true"
+              StandardOutputImportance="low" StandardErrorImportance="low">
+            <Output TaskParameter="ExitCode" PropertyName="BunOnPath" />
+        </Exec>
+
+        <Exec Command="mise exec -- bun --version" Condition="'$(BunOnPath)' != '0'"
+              ContinueOnError="true" IgnoreExitCode="true"
+              StandardOutputImportance="low" StandardErrorImportance="low">
+            <Output TaskParameter="ExitCode" PropertyName="BunViaMise" />
+        </Exec>
+
+        <PropertyGroup>
+            <BunCommand Condition="'$(BunOnPath)' == '0'">bun</BunCommand>
+            <BunCommand Condition="'$(BunOnPath)' != '0' and '$(BunViaMise)' == '0'">mise exec -- bun</BunCommand>
+        </PropertyGroup>
+
+        <Error Condition="'$(BunCommand)' == ''"
+               Text="bun is required to build the UI and was not found on PATH or through mise. Run 'mise install' from the repository root, or pass -p:SkipWebUi=true to build against the bundle already in wwwroot." />
+    </Target>
+
+    <ItemGroup>
+        <WebUiSource Include="$(WebUiRoot)src\**\*" Exclude="$(WebUiRoot)node_modules\**" />
+        <WebUiSource Include="$(WebUiRoot)package.json;$(WebUiRoot)bun.lock;$(WebUiRoot)tsconfig.json" />
+    </ItemGroup>
+
+    <Target Name="BuildWebUi" BeforeTargets="BeforeBuild" DependsOnTargets="ResolveBun"
+            Condition="'$(SkipWebUi)' != 'true'"
+            Inputs="@(WebUiSource)" Outputs="$(WebUiOutput)">
+        <Exec Command="$(BunCommand) install --frozen-lockfile" WorkingDirectory="$(WebUiRoot)" />
+        <Exec Command="$(BunCommand) run build" WorkingDirectory="$(WebUiRoot)" />
+    </Target>
+
 </Project>

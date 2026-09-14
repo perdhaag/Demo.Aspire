@@ -41,11 +41,19 @@ milliseconds actually went. See [Watching it happen](#watching-it-happen).
 
 ## Running it
 
-Requires the .NET 10 SDK, the `aspire` CLI, and a working container runtime.
+Requires the .NET 10 SDK, the `aspire` CLI, a working container runtime, and
+[bun](https://bun.sh) for the front end. `mise install` from the repository root provides
+the SDK and bun both.
 
 ```bash
 aspire run
 ```
+
+The gateway's build bundles the React app in `src/Demo.Aspire.Web` into its `wwwroot`, so
+there is no second command to remember. If you have no bun and only want the C# to
+compile, `dotnet build -p:SkipWebUi=true` builds against whatever is already bundled. The
+rewrite is in progress and serves at `/next/` while the page at `/` is still the original
+— see [docs/react-ui-plan.md](docs/react-ui-plan.md).
 
 Open the dashboard it prints, then follow the **Demo Kino** link on the `gateway`
 resource. The dashboard also links to pgweb, RedisInsight, the RabbitMQ management UI and

@@ -1,0 +1,26 @@
+{
+    "compilerOptions": {
+        "target": "esnext",
+        "lib": ["esnext", "dom", "dom.iterable"],
+        "module": "preserve",
+        "moduleResolution": "bundler",
+        "jsx": "react-jsx",
+        "allowImportingTsExtensions": true,
+        "types": ["bun"],
+
+        "strict": true,
+        "noUncheckedIndexedAccess": true,
+        "noFallthroughCasesInSwitch": true,
+
+        // Bun erases types rather than compiling them, so `enum`, `namespace` and
+        // constructor parameter properties are not available here. Better to hear that
+        // from the compiler than to hear nothing from the bundler.
+        "verbatimModuleSyntax": true,
+        "erasableSyntaxOnly": true,
+
+        // Bun does all the emitting; tsc is only ever run as `bun run typecheck`.
+        "noEmit": true,
+        "skipLibCheck": true
+    },
+    "include": ["src", "dev-server.ts", "test-setup.ts"]
+}

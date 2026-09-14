@@ -5,3 +5,8 @@ TestResults/
 .idea/
 *.user
 .claude/
+node_modules/
+
+# Build output of src/Demo.Aspire.Web. The rest of wwwroot is still hand-written source
+# until the React app takes over "/" — see docs/react-ui-plan.md, phase 8.
+src/Demo.Aspire.Gateway/wwwroot/next/
