@@ -24,7 +24,7 @@
 
     <PropertyGroup>
         <WebUiRoot>$(MSBuildThisFileDirectory)..\Demo.Aspire.Web\</WebUiRoot>
-        <WebUiOutput>$(MSBuildThisFileDirectory)wwwroot\next\index.html</WebUiOutput>
+        <WebUiOutput>$(MSBuildThisFileDirectory)wwwroot\index.html</WebUiOutput>
     </PropertyGroup>
 
     <!-- bun is installed by mise (see mise.toml). Whether it is on PATH depends on

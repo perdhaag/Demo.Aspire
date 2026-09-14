@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "bun run dev-server.ts",
-    "build": "bun build ./src/index.html --outdir ../Demo.Aspire.Gateway/wwwroot/next --production --sourcemap=linked",
+    "build": "bun build ./src/index.html --outdir ../Demo.Aspire.Gateway/wwwroot --production --sourcemap=linked",
     "typecheck": "tsc --noEmit",
     "test": "bun test"
   },

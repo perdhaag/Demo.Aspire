@@ -1,5 +1,11 @@
 # Implementation plan — the UI in React, TypeScript 7 and Bun
 
+> **Done.** All eight phases are implemented; `src/Demo.Aspire.Gateway/wwwroot` is build
+> output now and `app.js` is gone. What the build actually turned up is recorded in
+> [What it found](#what-it-found) at the end — including a bug the vanilla page had all
+> along. The plan is left standing as written so the reasoning behind each decision is
+> still readable next to the code it produced.
+
 The front end today is one 930-line `app.js`, one 911-line `app.css` and a hand-written
 `index.html`, served straight out of `src/Demo.Aspire.Gateway/wwwroot`. It works, and it
 is deliberately dependency-free. What it is not is *editable by someone who did not write
@@ -496,3 +502,51 @@ a phone; both deserve the comments that are already written for them.
 **Nothing here changes the story the demo tells.** If a phase starts requiring a C# change
 to work, that is the signal that the rewrite has drifted — the whole front end talks to
 `/api`, and there is no reason for that to stop being true.
+
+---
+
+## What it found
+
+Five things surfaced during the build that the plan did not anticipate. Four of them were
+defects, and none were in the parts anyone would have predicted.
+
+**The waterfall's "queue wait" label has never once rendered.** `drawWaterfall` picks the
+widest publish-to-consume gap with
+
+```js
+gaps.reduce((widest, gap) =>
+    gap.endMs - gap.startMs > (widest?.endMs - widest?.startMs ?? -1) ? gap : widest, null)
+```
+
+`-` binds tighter than `??`, so on the first iteration the right-hand side is
+`(undefined - undefined) ?? -1` — and that is `NaN`, not `-1`, because `NaN` is not
+nullish. Every comparison against `NaN` is false, the accumulator stays `null`, and
+`gap === widestGap` never matches for any gap. Extracting the arithmetic into a pure
+function and writing a test for it is what exposed this; the React version shows the
+label. This is the clearest argument in the whole exercise for the plan's insistence that
+phases 5 and 7 extract testable functions.
+
+**The race could leave its buttons permanently disabled.** The old handler re-enabled them
+by calling `updateTally()` after `await refresh()`, so a refresh that threw never got
+there. It is a `finally` now.
+
+**Three defects were in the new data layer, not the old page**, and every one of them only
+appeared once a real component consumed it: tracked bookings were resolved through
+`GET /bookings/{id}` and then discarded (so a race's winning panel had nothing to draw,
+because the rival's booking belongs to a different address and is never in `bookings`);
+there was no way to tell "catalogue not fetched yet" from "no screenings on sale", so the
+page briefly claimed the latter; and the tape's `connected` boolean could not distinguish a
+stream that had never opened from one that had opened and dropped, so the rail announced
+"reconnecting…" from first paint. The lesson is the unglamorous one — a data layer written
+against a plan rather than against a caller is a data layer with holes in it.
+
+**`bun` was already installed here, and still could not be found.** mise had it, but mise
+is activated per shell, so a non-interactive shell and an IDE launched from a desktop menu
+both see nothing on `PATH`. Hence `ResolveBun` probing `bun` and then `mise exec -- bun`
+rather than the single `CheckBun` guard the plan sketched.
+
+**Two small things the plan got wrong on its own terms.** `--minify` alone leaves React's
+development build in the bundle; `--production` sets `NODE_ENV` too and halves it, 430 KB
+to 212 KB. And happy-dom starts its document at `about:blank`, where a relative
+`history.replaceState` cannot resolve — so every test of the `?screening=` and `?booking=`
+deep links silently saw no parameters until the registrator was given a real origin.

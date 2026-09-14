@@ -17,8 +17,9 @@ milliseconds actually went. See [Watching it happen](#watching-it-happen).
 
 ![The demo UI: a seat map and the message flow behind one booking](docs/ui.png)
 
-> The screenshot above predates the bus tape, the chaos strip and "Race a rival" — it
-> still shows the right idea, just not the current page. Worth re-capturing after a run.
+> The screenshot above predates the bus tape, the chaos strip, "Race a rival" and the
+> React rewrite — it still shows the right idea, just not the current page. Worth
+> re-capturing after a run.
 
 ```
                     ┌──────────── Gateway (YARP + Redis output cache) ────────────┐
@@ -49,11 +50,14 @@ the SDK and bun both.
 aspire run
 ```
 
-The gateway's build bundles the React app in `src/Demo.Aspire.Web` into its `wwwroot`, so
-there is no second command to remember. If you have no bun and only want the C# to
-compile, `dotnet build -p:SkipWebUi=true` builds against whatever is already bundled. The
-rewrite is in progress and serves at `/next/` while the page at `/` is still the original
-— see [docs/react-ui-plan.md](docs/react-ui-plan.md).
+The UI is React, and `wwwroot` is entirely build output: the gateway's build bundles
+`src/Demo.Aspire.Web` into it with bun, so there is no second command to remember and
+nothing in `wwwroot` is worth editing. If you have no bun and only want the C# to compile,
+`dotnet build -p:SkipWebUi=true` builds against whatever is already bundled there — which
+after a fresh clone is nothing, so the page will 404 until you run a real build. To iterate
+on the front end against an app host that is already running, `bun run dev` in
+`src/Demo.Aspire.Web` serves it on :5173 with hot reload and proxies `/api` to the gateway
+(give it `GATEWAY_URL`; the port is not fixed across runs).
 
 Open the dashboard it prints, then follow the **Demo Kino** link on the `gateway`
 resource. The dashboard also links to pgweb, RedisInsight, the RabbitMQ management UI and
