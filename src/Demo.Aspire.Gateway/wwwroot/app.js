@@ -2,7 +2,8 @@
 // so the browser never learns that there are four services behind it.
 //
 // Placing a booking is one POST that returns 202. The rest of the story finishes on the
-// message bus, which is why this page polls: there is nothing to await.
+// message bus — the bus tape (see "Step 3.5" below) is what shows that happening, so
+// this page only needs to poll a read model as a slow safety net, not as its main loop.
 
 const API = '/api';
 
@@ -46,6 +47,9 @@ function toast(message) {
 const clock = new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit' });
 const dayAndTime = new Intl.DateTimeFormat(undefined, {
     weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
+});
+const preciseClock = new Intl.DateTimeFormat(undefined, {
+    hour: '2-digit', minute: '2-digit', second: '2-digit', fractionalSecondDigits: 3,
 });
 
 const money = (amount, currency) =>
@@ -289,6 +293,107 @@ function drawFlow(booking, payment, mail) {
 
 const markerFor = state => ({ done: '✓', failed: '✕', pending: '·', waiting: '' })[state] ?? '';
 
+/* ── Step 3.5: the bus tape ───────────────────────────────────────────────── */
+//
+// Every service tees what it publishes and consumes onto a Redis feed; the gateway
+// streams that feed here over Server-Sent Events (GET /api/events). This is the actual
+// choreography happening, not an inference drawn from polling a read model — and an
+// entry for the tracked booking is what schedules the one poll that keeps the flow
+// above up to date, instead of a fixed-interval loop guessing when to look.
+
+const MAX_TAPE_ROWS = 200;
+
+let tapeRefreshTimer;
+
+// state.tracked is one booking id today and becomes { mine, rival } once "race a
+// rival" is in play; this is the one place that needs to know which shape it has.
+function trackedCorrelationIds() {
+    if (!state.tracked) return [];
+    return typeof state.tracked === 'string' ? [state.tracked] : Object.values(state.tracked).filter(Boolean);
+}
+
+function tapeRowLabel(entry) {
+    const verb = entry.kind === 'Published' ? 'published' : entry.kind === 'Faulted' ? 'failed on' : 'consumed';
+    return `${entry.event} ${verb}`;
+}
+
+function tapeRowDetail(entry) {
+    const parts = [];
+    if (entry.durationMs != null) parts.push(`${Math.round(entry.durationMs)} ms`);
+    if (entry.detail) parts.push(entry.detail);
+    return parts.join(' — ');
+}
+
+function tapeRow(entry) {
+    const detail = tapeRowDetail(entry);
+
+    const row = node('li', { className: 'tape-row' },
+        node('span', { className: 'svc', textContent: entry.service }),
+        node('span', { className: 'event', textContent: tapeRowLabel(entry) }),
+        node('span', { className: 'at', textContent: preciseClock.format(new Date(entry.atUtc)) }),
+        detail ? node('span', { className: 'detail', textContent: detail }) : null);
+
+    row.dataset.kind = entry.kind;
+    row.dataset.tracked = String(trackedCorrelationIds().includes(entry.correlationId));
+    row.style.setProperty('--tape-row-color', `var(--svc-${entry.service})`);
+    return row;
+}
+
+function applyTapeFilter() {
+    const onlyTracked = el('tape-filter').checked;
+
+    for (const row of el('tape-rows').children) {
+        if (row.classList.contains('tape-empty')) continue;
+        row.hidden = onlyTracked && row.dataset.tracked !== 'true';
+    }
+}
+
+el('tape-filter').onchange = applyTapeFilter;
+
+function appendTapeRow(entry) {
+    const rows = el('tape-rows');
+
+    rows.querySelector('.tape-empty')?.remove();
+    rows.append(tapeRow(entry));
+
+    while (rows.children.length > MAX_TAPE_ROWS) {
+        rows.firstElementChild?.remove();
+    }
+
+    applyTapeFilter();
+
+    // A message for the flow we are drawing means that flow just moved: look now
+    // instead of waiting for the next safety-net poll. Debounced because the read
+    // model the flow queries is written a moment after the message that reports it.
+    if (trackedCorrelationIds().includes(entry.correlationId)) {
+        clearTimeout(tapeRefreshTimer);
+        tapeRefreshTimer = setTimeout(() => refresh().catch(() => {}), 150);
+    }
+}
+
+function setTapeStatus(connected, text) {
+    el('tape-status').dataset.connected = String(connected);
+    el('tape-status-text').textContent = text;
+}
+
+async function connectTape() {
+    try {
+        for (const entry of await api('/events/recent?take=100')) {
+            appendTapeRow(entry);
+        }
+    } catch {
+        // The live stream connected below will carry on from here regardless; a seed
+        // that failed to load is not worth failing the page over.
+    }
+
+    const source = new EventSource(`${API}/events`);
+
+    source.addEventListener('bus', event => appendTapeRow(JSON.parse(event.data)));
+    source.onopen = () => setTapeStatus(true, 'live');
+    // EventSource reconnects on its own; this only reflects that state in the UI.
+    source.onerror = () => setTapeStatus(false, 'reconnecting…');
+}
+
 /* ── Ledgers ──────────────────────────────────────────────────────────────── */
 
 function table(headings, rows, emptyMessage) {
@@ -381,8 +486,10 @@ async function refresh() {
     }
 }
 
-// Poll hard while a booking is in flight, and gently the rest of the time. A real client
-// would take a push feed from the gateway instead.
+// A slow safety net, not the main loop: the bus tape is what actually notices a tracked
+// booking has moved (see appendTapeRow above) and asks for a near-immediate refresh.
+// This tick only covers the gap — a page that loaded before the tape connected, or a
+// tape entry that Redis never delivered.
 async function tick() {
     try {
         await refresh();
@@ -390,12 +497,13 @@ async function tick() {
     } catch (error) {
         console.warn('refresh failed', error);
     } finally {
-        setTimeout(tick, state.tracked ? 500 : 4000);
+        setTimeout(tick, 4000);
     }
 }
 
 el('email').onchange = () => refresh().catch(() => {});
 
+connectTape();
 await loadScreenings().catch(error => toast(`Could not reach the gateway: ${error.message}`));
 
 // ?screening=<id> makes a seat map shareable, and lets a headless browser reach step 2.

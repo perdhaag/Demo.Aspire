@@ -46,6 +46,33 @@ public static class MessagingExtensions
         public IHostApplicationBuilder AddMessaging(Action<IBusRegistrationConfigurator>? configure = null) =>
             builder.AddMessagingCore(configure);
 
+        /// <summary>
+        /// Tees every integration event this service publishes or consumes onto the bus
+        /// tape (see <see cref="BusTap"/>), so the demo UI can show the choreography
+        /// happening instead of asserting that it does. Requires a Redis client to have
+        /// been registered first, and is meant to be called once, from every service.
+        /// </summary>
+        /// <param name="serviceName">
+        /// The name this service's rows carry on the tape &mdash; the same short name it
+        /// is given as an Aspire resource (<see cref="ResourceNames.Services"/>), not the
+        /// assembly name, so it lines up with what the rest of the demo already calls it.
+        /// </param>
+        public IHostApplicationBuilder AddBusTap(string serviceName)
+        {
+            builder.Services.AddSingleton<BusTap>();
+
+            builder.Services.AddPublishObserver(provider =>
+                new BusTapPublishObserver(provider.GetRequiredService<BusTap>(), serviceName));
+
+            builder.Services.AddConsumeObserver(provider =>
+                new BusTapConsumeObserver(
+                    provider.GetRequiredService<BusTap>(),
+                    serviceName,
+                    provider.GetRequiredService<TimeProvider>()));
+
+            return builder;
+        }
+
         private IHostApplicationBuilder AddMessagingCore(Action<IBusRegistrationConfigurator>? configure)
         {
             var brokerUri = builder.Configuration.GetConnectionString(ResourceNames.Messaging)

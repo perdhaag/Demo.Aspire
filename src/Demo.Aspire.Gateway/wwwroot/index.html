@@ -25,6 +25,7 @@
     </div>
 </header>
 
+<div class="layout">
 <main>
     <!-- Step 1 ─ the catalogue, served through the gateway's Redis output cache. -->
     <section aria-labelledby="step-screenings">
@@ -90,10 +91,33 @@
     </section>
 </main>
 
+<!-- The bus tape: every message published or consumed by any of the five services,
+     streamed live over Server-Sent Events. This is what "everything past Placed
+     happens on RabbitMQ" actually looks like, rather than an assertion the page makes
+     while quietly polling instead. -->
+<aside class="tape" aria-label="Live bus tape">
+    <div class="tape-head">
+        <h2>Bus tape</h2>
+        <span class="tape-status" id="tape-status" data-connected="false">
+            <span class="dot-live" aria-hidden="true"></span>
+            <span id="tape-status-text">connecting&hellip;</span>
+        </span>
+    </div>
+    <label class="tape-filter">
+        <input type="checkbox" id="tape-filter">
+        This booking only
+    </label>
+    <ol class="tape-rows" id="tape-rows">
+        <li class="tape-empty">Waiting for the first message&hellip;</li>
+    </ol>
+</aside>
+</div>
+
 <footer>
     <p>
         Screenings &middot; Bookings &middot; Payments &middot; Notifications &middot; Gateway.
-        Everything past &ldquo;Placed&rdquo; happens on RabbitMQ; this page only polls.
+        Everything past &ldquo;Placed&rdquo; happens on RabbitMQ &mdash; the tape above is
+        that bus, not a page that polls and calls it one.
     </p>
 </footer>
 

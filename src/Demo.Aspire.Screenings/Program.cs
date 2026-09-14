@@ -35,6 +35,7 @@ builder.Services.AddSingleton<SeatMapProjection>();
 builder.Services.AddHostedService<DatabaseInitializer<ScreeningsDbContext>>();
 
 builder.AddMessaging<ScreeningsDbContext>(bus => bus.AddConsumers(Assembly.GetExecutingAssembly()));
+builder.AddBusTap(ResourceNames.Services.Screenings);
 
 builder.Services.AddHostedService<SeatHoldSweeper>();
 builder.Services.AddOpenApi();

@@ -16,6 +16,10 @@ builder.AddServiceDefaults();
 
 builder.AddNpgsqlDbContext<PaymentsDbContext>(ResourceNames.PaymentsDatabase);
 
+// This context has no data of its own in Redis; it is here only so the bus tape (see
+// AddBusTap below) has somewhere to write.
+builder.AddRedisClient(ResourceNames.Cache);
+
 builder.AddPlatform(Assembly.GetExecutingAssembly());
 
 builder.Services.Configure<SimulatedPaymentGatewayOptions>(
@@ -29,6 +33,7 @@ builder.Services.AddSingleton<IPaymentGateway, SimulatedPaymentGateway>();
 builder.Services.AddHostedService<DatabaseInitializer<PaymentsDbContext>>();
 
 builder.AddMessaging<PaymentsDbContext>(bus => bus.AddConsumers(Assembly.GetExecutingAssembly()));
+builder.AddBusTap(ResourceNames.Services.Payments);
 builder.Services.AddOpenApi();
 
 var app = builder.Build();

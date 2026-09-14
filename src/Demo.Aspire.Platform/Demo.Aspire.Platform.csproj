@@ -2,7 +2,10 @@
 
     <!--
       Shared *infrastructure*, kept out of the Shared Kernel on purpose. Everything here
-      knows about EF Core, MassTransit or ASP.NET Core; none of it knows about cinemas.
+      knows about EF Core, MassTransit, Redis or ASP.NET Core; none of it knows about
+      cinemas. The Redis dependency is for BusTap alone (Messaging/BusTap.cs) — a demo
+      aid, not a reliability mechanism, which is why it earns a comment of its own: every
+      other package here is load-bearing for the choreography itself.
     -->
 
     <ItemGroup>
@@ -10,6 +13,7 @@
     </ItemGroup>
 
     <ItemGroup>
+        <PackageReference Include="Aspire.StackExchange.Redis" />
         <PackageReference Include="FluentValidation" />
         <PackageReference Include="FluentValidation.DependencyInjectionExtensions" />
         <PackageReference Include="MassTransit" />
