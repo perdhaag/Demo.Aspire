@@ -256,6 +256,17 @@ Bun.serve({
 Take the gateway's URL from the Aspire dashboard; it is not fixed across runs. This is a
 convenience, not the supported path — `aspire run` remains the way the demo is shown.
 
+> **Since implemented differently.** The app host declares this as a `web` resource via
+> `AddBunApp` from `Aspire.Hosting.JavaScript`, marked `.WithExplicitStart()`, so it is
+> listed in the dashboard but does not start with the application and both `PORT` and
+> `GATEWAY_URL` are handed to it. Running it by hand still works and is still what the
+> command above does.
+>
+> Writing the resource is also what finally exercised this file, and it had never worked:
+> Bun matches `routes` before it consults `fetch`, so `"/*": index` answered
+> `/api/screenings` with the page's own HTML and the proxy below it was unreachable code.
+> The proxy is a `"/api/*"` route now.
+
 ---
 
 ## Phase 1 — the shell

@@ -54,10 +54,15 @@ The UI is React, and `wwwroot` is entirely build output: the gateway's build bun
 `src/Demo.Aspire.Web` into it with bun, so there is no second command to remember and
 nothing in `wwwroot` is worth editing. If you have no bun and only want the C# to compile,
 `dotnet build -p:SkipWebUi=true` builds against whatever is already bundled there — which
-after a fresh clone is nothing, so the page will 404 until you run a real build. To iterate
-on the front end against an app host that is already running, `bun run dev` in
-`src/Demo.Aspire.Web` serves it on :5173 with hot reload and proxies `/api` to the gateway
-(give it `GATEWAY_URL`; the port is not fixed across runs).
+after a fresh clone is nothing, so the page will 404 until you run a real build. 
+
+The dashboard also lists a **`web`** resource, which does not start with everything else.
+It is the bun dev server: press Start on it when the thing you are changing is the page
+rather than the system behind it, and you get hot reload instead of a full `dotnet build`
+per CSS tweak. The page it serves still asks the real gateway for everything under `/api`,
+so the output cache, YARP and the four services behind them behave exactly as they do in
+the built page. The demo itself is always the gateway's **Demo Kino** link — `web` is a
+second front door, which is why it stays shut unless you open it.
 
 Open the dashboard it prints, then follow the **Demo Kino** link on the `gateway`
 resource. The dashboard also links to pgweb, RedisInsight, the RabbitMQ management UI and

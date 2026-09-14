@@ -83,7 +83,7 @@ var notifications = builder.AddProject<Projects.Demo_Aspire_Notifications>(Resou
 // hosts the embedded dashboard. When it is not set, the UI simply hides the link.
 var dashboardUrl = builder.Configuration["ASPNETCORE_URLS"]?.Split(';')[0];
 
-builder.AddProject<Projects.Demo_Aspire_Gateway>(ResourceNames.Services.Gateway)
+var gateway = builder.AddProject<Projects.Demo_Aspire_Gateway>(ResourceNames.Services.Gateway)
     .WithReference(cache).WaitFor(cache)
     .WithReference(screenings)
     .WithReference(bookings)
@@ -92,5 +92,32 @@ builder.AddProject<Projects.Demo_Aspire_Gateway>(ResourceNames.Services.Gateway)
     .WithEnvironment("Demo__DashboardUrl", dashboardUrl ?? string.Empty)
     .WithExternalHttpEndpoints()
     .WithUrlForEndpoint("http", url => url.DisplayText = "Demo Kino");
+
+// ── The front end, for iterating on it ───────────────────────────────────────────
+//
+// The UI already ships with the application: the gateway's build bundles
+// src/Demo.Aspire.Web into its wwwroot with bun, and the "Demo Kino" link above serves
+// that bundle. Nothing here is needed to run the demo.
+//
+// What this adds is the bun dev server, with hot reload, for the times when the thing
+// being changed is the page rather than the system behind it — otherwise every CSS tweak
+// costs a full dotnet build. It deliberately does not start with everything else:
+// starting it would put a second front door on the demo, and the audience should be
+// looking at the gateway's. Press Start on it in the dashboard when you want it.
+//
+// Explicit start also keeps a machine without bun on its PATH from failing the whole app
+// host: `aspire run` is unaffected, and the resource only fails if you ask for it. Note
+// that mise is activated per shell, so an IDE launched from a desktop menu may not see
+// bun even where a terminal does.
+//
+// It is not the front door, but it is in front of one: the page it serves still asks the
+// real gateway for everything under /api, so the Redis output cache, YARP and the four
+// services behind them all behave exactly as they do in the built page.
+builder.AddBunApp("web", "../Demo.Aspire.Web", "dev-server.ts")
+    .WithHttpEndpoint(env: "PORT")
+    .WithEnvironment("GATEWAY_URL", gateway.GetEndpoint("http"))
+    .WithParentRelationship(gateway)
+    .WithExplicitStart()
+    .WithUrlForEndpoint("http", url => url.DisplayText = "Demo Kino (hot reload)");
 
 builder.Build().Run();
