@@ -1,72 +1,65 @@
 <Project>
-
-    <PropertyGroup>
-        <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
-        <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
-        <AspireVersion>13.5.3</AspireVersion>
-        <OpenTelemetryVersion>1.18.0</OpenTelemetryVersion>
-        <MassTransitVersion>8.5.10</MassTransitVersion>
-    </PropertyGroup>
-
-    <!-- Aspire app host -->
-    <ItemGroup>
-        <PackageVersion Include="Aspire.Hosting.AppHost" Version="$(AspireVersion)" />
-        <PackageVersion Include="Aspire.Hosting.PostgreSQL" Version="$(AspireVersion)" />
-        <PackageVersion Include="Aspire.Hosting.JavaScript" Version="$(AspireVersion)" />
-        <PackageVersion Include="Aspire.Hosting.RabbitMQ" Version="$(AspireVersion)" />
-        <PackageVersion Include="Aspire.Hosting.Redis" Version="$(AspireVersion)" />
-    </ItemGroup>
-
-    <!-- Aspire client integrations -->
-    <ItemGroup>
-        <PackageVersion Include="Aspire.Npgsql.EntityFrameworkCore.PostgreSQL" Version="$(AspireVersion)" />
-        <PackageVersion Include="Aspire.StackExchange.Redis" Version="$(AspireVersion)" />
-        <PackageVersion Include="Aspire.StackExchange.Redis.DistributedCaching" Version="$(AspireVersion)" />
-        <PackageVersion Include="Aspire.StackExchange.Redis.OutputCaching" Version="$(AspireVersion)" />
-    </ItemGroup>
-
-    <!-- Messaging -->
-    <ItemGroup>
-        <PackageVersion Include="MassTransit" Version="$(MassTransitVersion)" />
-        <PackageVersion Include="MassTransit.RabbitMQ" Version="$(MassTransitVersion)" />
-        <PackageVersion Include="MassTransit.EntityFrameworkCore" Version="$(MassTransitVersion)" />
-    </ItemGroup>
-
-    <!-- Persistence -->
-    <ItemGroup>
-        <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.12" />
-        <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.12" />
-        <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
-    </ItemGroup>
-
-    <!-- Web / hosting -->
-    <ItemGroup>
-        <PackageVersion Include="FluentValidation" Version="12.1.1" />
-        <PackageVersion Include="FluentValidation.DependencyInjectionExtensions" Version="12.1.1" />
-        <PackageVersion Include="MailKit" Version="4.17.0" />
-        <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.12" />
-        <PackageVersion Include="Microsoft.OpenApi" Version="2.12.2" />
-        <PackageVersion Include="Microsoft.Extensions.Http.Resilience" Version="10.10.0" />
-        <PackageVersion Include="Microsoft.Extensions.ServiceDiscovery" Version="10.10.0" />
-        <PackageVersion Include="Microsoft.Extensions.ServiceDiscovery.Yarp" Version="10.10.0" />
-        <PackageVersion Include="Scalar.AspNetCore" Version="2.17.3" />
-        <PackageVersion Include="Yarp.ReverseProxy" Version="2.3.0" />
-    </ItemGroup>
-
-    <!-- Telemetry -->
-    <ItemGroup>
-        <PackageVersion Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="$(OpenTelemetryVersion)" />
-        <PackageVersion Include="OpenTelemetry.Extensions.Hosting" Version="$(OpenTelemetryVersion)" />
-        <PackageVersion Include="OpenTelemetry.Instrumentation.AspNetCore" Version="$(OpenTelemetryVersion)" />
-        <PackageVersion Include="OpenTelemetry.Instrumentation.Http" Version="$(OpenTelemetryVersion)" />
-        <PackageVersion Include="OpenTelemetry.Instrumentation.Runtime" Version="$(OpenTelemetryVersion)" />
-    </ItemGroup>
-
-    <!-- Test -->
-    <ItemGroup>
-        <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.10.0" />
-        <PackageVersion Include="Shouldly" Version="4.3.0" />
-        <PackageVersion Include="xunit.v3" Version="4.0.1" />
-    </ItemGroup>
-
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
+    <AspireVersion>13.5.3</AspireVersion>
+    <OpenTelemetryVersion>1.18.0</OpenTelemetryVersion>
+    <MassTransitVersion>8.5.10</MassTransitVersion>
+  </PropertyGroup>
+  <!-- Aspire app host -->
+  <ItemGroup>
+    <PackageVersion Include="Aspire.Hosting.AppHost" Version="$(AspireVersion)" />
+    <PackageVersion Include="Aspire.Hosting.Docker" Version="$(AspireVersion)" />
+    <PackageVersion Include="Aspire.Hosting.Kubernetes" Version="13.5.3-preview.1.26425.3" />
+    <PackageVersion Include="Aspire.Hosting.PostgreSQL" Version="$(AspireVersion)" />
+    <PackageVersion Include="Aspire.Hosting.JavaScript" Version="$(AspireVersion)" />
+    <PackageVersion Include="Aspire.Hosting.RabbitMQ" Version="$(AspireVersion)" />
+    <PackageVersion Include="Aspire.Hosting.Redis" Version="$(AspireVersion)" />
+  </ItemGroup>
+  <!-- Aspire client integrations -->
+  <ItemGroup>
+    <PackageVersion Include="Aspire.Npgsql.EntityFrameworkCore.PostgreSQL" Version="$(AspireVersion)" />
+    <PackageVersion Include="Aspire.StackExchange.Redis" Version="$(AspireVersion)" />
+    <PackageVersion Include="Aspire.StackExchange.Redis.DistributedCaching" Version="$(AspireVersion)" />
+    <PackageVersion Include="Aspire.StackExchange.Redis.OutputCaching" Version="$(AspireVersion)" />
+  </ItemGroup>
+  <!-- Messaging -->
+  <ItemGroup>
+    <PackageVersion Include="MassTransit" Version="$(MassTransitVersion)" />
+    <PackageVersion Include="MassTransit.RabbitMQ" Version="$(MassTransitVersion)" />
+    <PackageVersion Include="MassTransit.EntityFrameworkCore" Version="$(MassTransitVersion)" />
+  </ItemGroup>
+  <!-- Persistence -->
+  <ItemGroup>
+    <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.12" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.12" />
+    <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
+  </ItemGroup>
+  <!-- Web / hosting -->
+  <ItemGroup>
+    <PackageVersion Include="FluentValidation" Version="12.1.1" />
+    <PackageVersion Include="FluentValidation.DependencyInjectionExtensions" Version="12.1.1" />
+    <PackageVersion Include="MailKit" Version="4.17.0" />
+    <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.12" />
+    <PackageVersion Include="Microsoft.OpenApi" Version="2.12.2" />
+    <PackageVersion Include="Microsoft.Extensions.Http.Resilience" Version="10.10.0" />
+    <PackageVersion Include="Microsoft.Extensions.ServiceDiscovery" Version="10.10.0" />
+    <PackageVersion Include="Microsoft.Extensions.ServiceDiscovery.Yarp" Version="10.10.0" />
+    <PackageVersion Include="Scalar.AspNetCore" Version="2.17.3" />
+    <PackageVersion Include="Yarp.ReverseProxy" Version="2.3.0" />
+  </ItemGroup>
+  <!-- Telemetry -->
+  <ItemGroup>
+    <PackageVersion Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="$(OpenTelemetryVersion)" />
+    <PackageVersion Include="OpenTelemetry.Extensions.Hosting" Version="$(OpenTelemetryVersion)" />
+    <PackageVersion Include="OpenTelemetry.Instrumentation.AspNetCore" Version="$(OpenTelemetryVersion)" />
+    <PackageVersion Include="OpenTelemetry.Instrumentation.Http" Version="$(OpenTelemetryVersion)" />
+    <PackageVersion Include="OpenTelemetry.Instrumentation.Runtime" Version="$(OpenTelemetryVersion)" />
+  </ItemGroup>
+  <!-- Test -->
+  <ItemGroup>
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.10.0" />
+    <PackageVersion Include="Shouldly" Version="4.3.0" />
+    <PackageVersion Include="xunit.v3" Version="4.0.1" />
+  </ItemGroup>
 </Project>

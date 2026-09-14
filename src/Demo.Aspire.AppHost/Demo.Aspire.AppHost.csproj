@@ -4,11 +4,15 @@
         <OutputType>Exe</OutputType>
         <AspireUseCliBundle>true</AspireUseCliBundle>
         <UserSecretsId>b525b6fd-fb80-4777-b65f-71a678d71515</UserSecretsId>
+        <!-- AddContainerRegistry/WithContainerRegistry are still marked experimental in Aspire 13.5. -->
+        <NoWarn>$(NoWarn);ASPIRECOMPUTE003</NoWarn>
     </PropertyGroup>
 
     <ItemGroup>
         <PackageReference Include="Aspire.Hosting.AppHost" />
+        <PackageReference Include="Aspire.Hosting.Docker" />
         <PackageReference Include="Aspire.Hosting.JavaScript" />
+        <PackageReference Include="Aspire.Hosting.Kubernetes" />
         <PackageReference Include="Aspire.Hosting.PostgreSQL" />
         <PackageReference Include="Aspire.Hosting.RabbitMQ" />
         <PackageReference Include="Aspire.Hosting.Redis" />
@@ -17,8 +21,7 @@
     <ItemGroup>
         <!-- The contracts assembly is referenced as a plain library, not as a resource:
              the app host only wants the resource-name constants from it. -->
-        <ProjectReference Include="..\Demo.Aspire.Contracts\Demo.Aspire.Contracts.csproj"
-                          IsAspireProjectResource="false" />
+        <ProjectReference Include="..\Demo.Aspire.Contracts\Demo.Aspire.Contracts.csproj" IsAspireProjectResource="false" />
     </ItemGroup>
 
     <ItemGroup>
