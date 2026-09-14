@@ -41,7 +41,7 @@ spec:
       bookings:
         bookings_image: ghcr.io/perdhaag/demo-aspire/bookings:main-5cc9d27-1789399580 # {"$imagepolicy": "flux-system:bookings"}
       payments:
-        payments_image: ghcr.io/perdhaag/demo-aspire/payments:main-0000000-0 # {"$imagepolicy": "flux-system:payments"}
+        payments_image: ghcr.io/perdhaag/demo-aspire/payments:main-5cc9d27-1789399580 # {"$imagepolicy": "flux-system:payments"}
       notifications:
         notifications_image: ghcr.io/perdhaag/demo-aspire/notifications:main-0000000-0 # {"$imagepolicy": "flux-system:notifications"}
       gateway:
