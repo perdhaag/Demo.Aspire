@@ -10,8 +10,14 @@ namespace Demo.Aspire.Screenings.Domain;
 /// </summary>
 public sealed class Screening : AggregateRoot<ScreeningId>
 {
-    /// <summary>How long a customer gets to pay before the seats go back on sale.</summary>
-    public static readonly TimeSpan HoldDuration = TimeSpan.FromMinutes(3);
+    /// <summary>
+    /// How long a customer gets to pay before the seats go back on sale, when the
+    /// caller states no other duration. In production that is every caller; the demo's
+    /// "short holds" switch (see Screenings.Features.HoldPolicy) is the one thing that
+    /// asks for something else, so it can compress the wait into something a live
+    /// audience will actually watch expire.
+    /// </summary>
+    public static readonly TimeSpan DefaultHoldDuration = TimeSpan.FromMinutes(3);
 
     public const int MaxSeatsPerBooking = 8;
 
@@ -131,10 +137,17 @@ public sealed class Screening : AggregateRoot<ScreeningId>
     /// same booking is safe: the second call reports the hold that already exists, which
     /// is what makes the message handler idempotent under redelivery.
     /// </summary>
+    /// <param name="holdDuration">
+    /// How long the hold lasts; defaults to <see cref="DefaultHoldDuration"/>. Exposed as
+    /// a parameter, not read from configuration here, because how long a hold lasts is a
+    /// policy decision the aggregate should not have an opinion on — the caller decides
+    /// and the aggregate just applies it.
+    /// </param>
     public Result<SeatHold> HoldSeats(
         BookingReference booking,
         IReadOnlyCollection<SeatNumber> requested,
-        DateTimeOffset now)
+        DateTimeOffset now,
+        TimeSpan? holdDuration = null)
     {
         if (_seats.Any(seat => seat.IsHeldBy(booking) || seat.IsSoldTo(booking)))
         {
@@ -180,7 +193,7 @@ public sealed class Screening : AggregateRoot<ScreeningId>
             matched.Add(seat);
         }
 
-        var expiresAtUtc = now + HoldDuration;
+        var expiresAtUtc = now + (holdDuration ?? DefaultHoldDuration);
 
         foreach (var seat in matched)
         {

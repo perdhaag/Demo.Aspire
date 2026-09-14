@@ -6,6 +6,7 @@ using Demo.Aspire.Platform.Messaging;
 using Demo.Aspire.Platform.Persistence;
 using Demo.Aspire.Screenings.Domain;
 using Demo.Aspire.Screenings.Features.ExpireSeatHolds;
+using Demo.Aspire.Screenings.Features.HoldPolicy;
 using Demo.Aspire.Screenings.Infrastructure;
 using Demo.Aspire.SharedKernel;
 using MassTransit;
@@ -29,6 +30,7 @@ builder.Services.AddScoped<IScreeningRepository, ScreeningRepository>();
 builder.Services.AddScoped<IUnitOfWork, ScreeningsUnitOfWork>();
 builder.Services.AddScoped<IDatabaseSeeder<ScreeningsDbContext>, ScreeningsSeeder>();
 builder.Services.AddSingleton<SeatMapProjection>();
+builder.Services.AddSingleton<SeatHoldPolicy>();
 
 // Hosted services start in registration order, so the schema (and with it the outbox
 // tables) is in place before MassTransit's delivery service begins polling.

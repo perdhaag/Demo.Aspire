@@ -14,7 +14,10 @@ const state = {
     screeningId: null,
     seatMap: null,
     selected: new Set(),
-    tracked: null,      // the booking whose flow we are drawing
+    tracked: null,          // the booking whose flow we are drawing
+    holdPolicySeconds: 180, // refreshed from GET /screenings/hold-policy; the seat
+                            // countdown ring assumes this as the hold's full length,
+                            // since the seat map does not carry when a hold began.
 };
 
 /* ── Transport ────────────────────────────────────────────────────────────── */
@@ -140,6 +143,7 @@ async function loadSeatMap() {
                 });
 
                 button.dataset.status = seat.status;
+                if (seat.holdExpiresAtUtc) button.dataset.holdExpires = seat.holdExpiresAtUtc;
                 button.setAttribute('aria-label', `Seat ${seat.number}, ${seat.status}`);
                 button.setAttribute('aria-pressed', String(state.selected.has(seat.number)));
                 button.onclick = () => toggleSeat(seat.number);
@@ -168,6 +172,50 @@ function toggleSeat(number) {
 
     updateTally();
 }
+
+// One rAF loop for every held seat currently on screen, rather than a timer per seat.
+// --hold-pct assumes the seat's full hold length was state.holdPolicySeconds, which is
+// true unless the policy changed mid-hold — close enough for a countdown, and the seat
+// map does not carry when a hold actually began.
+function tickHoldRings() {
+    const now = Date.now();
+
+    for (const button of document.querySelectorAll('.seat[data-hold-expires]')) {
+        const remainingMs = new Date(button.dataset.holdExpires).getTime() - now;
+        const totalMs = state.holdPolicySeconds * 1000;
+        const pct = Math.max(0, Math.min(100, (remainingMs / totalMs) * 100));
+        button.style.setProperty('--hold-pct', pct.toFixed(1));
+    }
+
+    requestAnimationFrame(tickHoldRings);
+}
+
+requestAnimationFrame(tickHoldRings);
+
+/* ── Short holds: a demo switch on Screenings' hold policy ───────────────── */
+
+async function loadHoldPolicy() {
+    const policy = await api('/screenings/hold-policy');
+    state.holdPolicySeconds = policy.seconds;
+    el('short-holds').checked = policy.seconds <= 30;
+}
+
+el('short-holds').onchange = async () => {
+    const seconds = el('short-holds').checked ? 20 : 180;
+
+    try {
+        const policy = await api('/screenings/hold-policy', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ seconds }),
+        });
+
+        state.holdPolicySeconds = policy.seconds;
+        toast(`New seat holds now last ${policy.seconds}s.`);
+    } catch (error) {
+        toast(error.message);
+    }
+};
 
 function updateTally() {
     const count = state.selected.size;
@@ -245,6 +293,11 @@ function drawFlow(booking, payment, mail) {
             note: booking.payBeforeUtc
                 ? `held until ${clock.format(new Date(booking.payBeforeUtc))}`
                 : null,
+            // While payment is still outstanding, tickHoldCountdowns overwrites the
+            // static note above with a live "Xs left to pay" every second, turning
+            // amber under 30s — the short-holds switch is only worth having if a
+            // viewer can watch the number count down, not read a fixed timestamp.
+            payBeforeUtc: booking.payBeforeUtc && !payment && !failed ? booking.payBeforeUtc : null,
         },
         {
             what: payment ? (payment.status === 'Captured' ? 'Payment captured' : 'Payment declined') : 'Taking payment…',
@@ -281,6 +334,12 @@ function drawFlow(booking, payment, mail) {
             node('span', { className: 'who', textContent: step.note ? `${step.who} · ${step.note}` : step.who }));
 
         item.dataset.state = step.state;
+
+        if (step.payBeforeUtc) {
+            item.dataset.payBefore = step.payBeforeUtc;
+            item.dataset.whoBase = step.who;
+        }
+
         return item;
     }));
 
@@ -289,9 +348,39 @@ function drawFlow(booking, payment, mail) {
         : failed
             ? 'The seats went straight back on sale — that is the compensating action, not a rollback.'
             : 'Every step below is a message. Nothing is orchestrating them.';
+
+    tickHoldCountdowns();
 }
 
 const markerFor = state => ({ done: '✓', failed: '✕', pending: '·', waiting: '' })[state] ?? '';
+
+// Runs every second regardless of when the flow was last redrawn, so "Xs left to pay"
+// counts down smoothly between polls instead of jumping only when refresh() happens to
+// fire. Ticking a countdown by re-rendering the whole flow list would also fight the
+// browser's own focus and hover state on it, small as that risk is here.
+function formatPayCountdown(remainingMs) {
+    if (remainingMs <= 0) return 'expiring now…';
+
+    const totalSeconds = Math.ceil(remainingMs / 1000);
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+
+    return minutes > 0 ? `${minutes}m ${seconds}s left to pay` : `${seconds}s left to pay`;
+}
+
+function tickHoldCountdowns() {
+    const now = Date.now();
+
+    for (const item of document.querySelectorAll('.flow li[data-pay-before]')) {
+        const remaining = new Date(item.dataset.payBefore).getTime() - now;
+        const who = item.querySelector('.who');
+
+        who.textContent = `${item.dataset.whoBase} · ${formatPayCountdown(remaining)}`;
+        item.classList.toggle('countdown-warn', remaining > 0 && remaining <= 30_000);
+    }
+}
+
+setInterval(tickHoldCountdowns, 1000);
 
 /* ── Step 3.5: the bus tape ───────────────────────────────────────────────── */
 //
@@ -504,6 +593,7 @@ async function tick() {
 el('email').onchange = () => refresh().catch(() => {});
 
 connectTape();
+loadHoldPolicy().catch(() => {}); // the switch just stays at its default if this fails
 await loadScreenings().catch(error => toast(`Could not reach the gateway: ${error.message}`));
 
 // ?screening=<id> makes a seat map shareable, and lets a headless browser reach step 2.

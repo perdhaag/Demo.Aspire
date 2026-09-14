@@ -119,6 +119,16 @@ footer > p {
 .identity { display: flex; flex-direction: column; gap: 4px; }
 .identity span { color: var(--ink-soft); font-size: .74rem; text-transform: uppercase; letter-spacing: .08em; }
 
+.switch {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    color: var(--ink-soft);
+    font-size: .8rem;
+    white-space: nowrap;
+    cursor: pointer;
+}
+
 input {
     font: inherit;
     color: var(--ink);
@@ -315,9 +325,24 @@ h2 {
 
 .seat:hover:not(:disabled) { transform: translateY(-2px); }
 .seat:disabled { cursor: not-allowed; }
-.seat[data-status="Held"] { background: var(--warn-soft); border-color: var(--warn); color: var(--warn); }
+.seat[data-status="Held"] { position: relative; background: var(--warn-soft); border-color: var(--warn); color: var(--warn); }
 .seat[data-status="Sold"] { background: var(--accent); border-color: var(--accent); color: var(--panel); }
 .seat[aria-pressed="true"] { background: var(--ok); border-color: var(--ok); color: var(--panel); }
+
+/* A depleting ring around a held seat, driven by --hold-pct (percentage of the hold
+   remaining, updated in a single rAF loop in app.js — see tickHoldRings). It sits in a
+   circular halo around the seat rather than inside it, so the seat number stays legible
+   at every point in the countdown. */
+.seat[data-status="Held"]::after {
+    content: "";
+    position: absolute;
+    inset: -3px;
+    border-radius: 50%;
+    background: conic-gradient(var(--warn) calc(var(--hold-pct, 100) * 1%), transparent 0);
+    -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 2.5px), #000 calc(100% - 2.5px));
+    mask: radial-gradient(farthest-side, transparent calc(100% - 2.5px), #000 calc(100% - 2.5px));
+    pointer-events: none;
+}
 
 .legend {
     display: flex;
@@ -424,6 +449,9 @@ h2 {
 .flow li[data-state="waiting"] .what { color: var(--ink-faint); font-weight: 400; }
 .flow .who { grid-column: 2; color: var(--ink-soft); font-size: .82rem; }
 .flow .when { color: var(--ink-faint); font-size: .78rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* The last 30s of a seat hold, ticking down live — see tickHoldCountdowns in app.js. */
+.flow li.countdown-warn .who { color: var(--warn); font-weight: 500; }
 
 /* ── Bus tape ─────────────────────────────────────────────────────────────── */
 

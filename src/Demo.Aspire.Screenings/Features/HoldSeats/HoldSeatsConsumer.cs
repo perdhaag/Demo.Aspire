@@ -2,6 +2,7 @@ using Demo.Aspire.Contracts;
 using Demo.Aspire.Platform.Domain;
 using Demo.Aspire.Platform.Messaging;
 using Demo.Aspire.Screenings.Domain;
+using Demo.Aspire.Screenings.Features.HoldPolicy;
 using Demo.Aspire.SharedKernel;
 using MassTransit;
 using Microsoft.Extensions.Logging;
@@ -17,6 +18,7 @@ public sealed class HoldSeatsConsumer(
     IUnitOfWork unitOfWork,
     IPublishEndpoint publishEndpoint,
     CorrelationContext correlation,
+    SeatHoldPolicy holdPolicy,
     TimeProvider clock,
     ILogger<HoldSeatsConsumer> logger) : IConsumer<BookingPlaced>
 {
@@ -43,7 +45,7 @@ public sealed class HoldSeatsConsumer(
             return;
         }
 
-        var hold = screening.HoldSeats(booking, requested.Value, clock.GetUtcNow());
+        var hold = screening.HoldSeats(booking, requested.Value, clock.GetUtcNow(), holdPolicy.Duration);
 
         // Whether the hold succeeded or was refused, the aggregate has already raised the
         // matching domain event. Saving is what turns that into an outbox row.

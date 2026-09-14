@@ -17,6 +17,10 @@
                 <p>Five services, one booking, no orchestrator.</p>
             </div>
         </div>
+        <label class="switch" title="Seat holds normally last three minutes; this makes a new one expire in 20 seconds, so SeatHoldSweeper releasing the seats is something you can actually watch.">
+            <input type="checkbox" id="short-holds">
+            <span>Short holds (20s)</span>
+        </label>
         <label class="identity">
             <span>Booking as</span>
             <input id="email" type="email" value="ada@example.com" spellcheck="false"

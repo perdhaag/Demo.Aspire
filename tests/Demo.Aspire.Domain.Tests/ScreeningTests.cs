@@ -53,7 +53,7 @@ public sealed class ScreeningTests
         var hold = screening.HoldSeats(booking, [Seat("A1"), Seat("A2")], Now);
 
         hold.IsSuccess.ShouldBeTrue();
-        hold.Value.ExpiresAtUtc.ShouldBe(Now + Screening.HoldDuration);
+        hold.Value.ExpiresAtUtc.ShouldBe(Now + Screening.DefaultHoldDuration);
         screening.AvailableSeatCountAt(Now).ShouldBe(10);
         screening.DomainEvents.OfType<SeatsHeldForBooking>().Count().ShouldBe(1);
     }
@@ -92,11 +92,30 @@ public sealed class ScreeningTests
         var booking = new BookingReference(Guid.NewGuid());
         screening.HoldSeats(booking, [Seat("A1")], Now);
 
-        var later = Now + Screening.HoldDuration + TimeSpan.FromSeconds(1);
+        var later = Now + Screening.DefaultHoldDuration + TimeSpan.FromSeconds(1);
 
         screening.AvailableSeatCountAt(later).ShouldBe(12);
         screening.ExpireLapsedHolds(later).ShouldBe([booking]);
         screening.DomainEvents.OfType<SeatHoldLapsed>().ShouldHaveSingleItem();
+    }
+
+    [Fact]
+    public void An_explicit_short_hold_expires_on_its_own_schedule_instead_of_the_default()
+    {
+        var screening = NewScreening();
+        var booking = new BookingReference(Guid.NewGuid());
+        var shortHold = TimeSpan.FromSeconds(20);
+
+        var hold = screening.HoldSeats(booking, [Seat("A1")], Now, shortHold);
+
+        hold.Value.ExpiresAtUtc.ShouldBe(Now + shortHold);
+
+        var justBefore = Now + shortHold - TimeSpan.FromSeconds(1);
+        screening.AvailableSeatCountAt(justBefore).ShouldBe(11);
+
+        var justAfter = Now + shortHold + TimeSpan.FromSeconds(1);
+        screening.AvailableSeatCountAt(justAfter).ShouldBe(12);
+        screening.ExpireLapsedHolds(justAfter).ShouldBe([booking]);
     }
 
     [Fact]
