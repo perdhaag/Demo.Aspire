@@ -45,4 +45,4 @@ spec:
       notifications:
         notifications_image: ghcr.io/perdhaag/demo-aspire/notifications:main-0000000-0 # {"$imagepolicy": "flux-system:notifications"}
       gateway:
-        gateway_image: ghcr.io/perdhaag/demo-aspire/gateway:main-0000000-0 # {"$imagepolicy": "flux-system:gateway"}
+        gateway_image: ghcr.io/perdhaag/demo-aspire/gateway:main-5cc9d27-1789399580 # {"$imagepolicy": "flux-system:gateway"}
