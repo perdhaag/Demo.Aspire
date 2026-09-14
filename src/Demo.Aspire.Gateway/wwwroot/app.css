@@ -140,6 +140,17 @@ input {
     max-width: 100%;
 }
 
+/* The rule above is written for the page's two text fields. A checkbox is not one of
+   them, and a 15rem-wide one pushes its label to the far side of the masthead switch
+   and of the bus tape's filter. */
+input[type="checkbox"] {
+    min-width: 0;
+    padding: 0;
+    border: 0;
+    background: none;
+    accent-color: var(--accent);
+}
+
 input:focus-visible,
 button:focus-visible {
     outline: 2px solid var(--accent);
@@ -617,7 +628,6 @@ h2 {
     top: 20px;
     display: flex;
     flex-direction: column;
-    gap: 10px;
     max-height: calc(100vh - 40px);
     background: var(--panel);
     border: 1px solid var(--line);
@@ -627,8 +637,109 @@ h2 {
     margin-block: 32px;
 }
 
+.tape-body {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    flex: 1;
+    min-height: 0;
+}
+
+/* The dock handle exists only in the narrow layout; see the media query below. */
+.tape-grab { display: none; }
+
+.tape-peek {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: 2px 9px;
+    text-align: left;
+}
+
+.tape-peek .svc {
+    grid-row: span 2;
+    align-self: center;
+    min-width: 5.6rem;
+    padding: 3px 6px;
+    border-radius: 5px;
+    font-size: .68rem;
+    font-weight: 600;
+    text-align: center;
+    color: #fff;
+    background: var(--tape-row-color, var(--ink-faint));
+    white-space: nowrap;
+}
+
+.tape-peek .event { font-weight: 500; font-size: .85rem; }
+.tape-peek .at { color: var(--ink-faint); font-size: .76rem; font-variant-numeric: tabular-nums; }
+
+.tape-peek .detail {
+    grid-column: 2 / span 2;
+    color: var(--ink-soft);
+    font-size: .76rem;
+    /* One line only: the peek is a glance, and the dock opens for the rest. */
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/*
+  Below the two-column breakpoint the tape stops being a rail beside the page and
+  becomes a dock pinned to the bottom of the screen. It matters because the tape is the
+  whole argument the page is making: stacked at the end of a phone-length document it
+  sits some four screens below the seat you just booked, which is the same as not being
+  there. Collapsed it costs one row; it opens itself on the first message belonging to
+  the booking being watched (see setTapeOpen in app.js), and closes with a tap.
+*/
 @media (max-width: 900px) {
-    .tape { position: static; max-height: 24rem; }
+    .tape {
+        position: fixed;
+        inset: auto 0 0 0;
+        z-index: 20;
+        margin: 0;
+        padding: 0 0 env(safe-area-inset-bottom, 0px);
+        max-height: calc(4.75rem + env(safe-area-inset-bottom, 0px));
+        border-width: 1px 0 0;
+        border-radius: var(--radius) var(--radius) 0 0;
+        box-shadow: 0 -10px 30px -22px rgb(0 0 0 / 70%);
+        overflow: hidden;
+        transition: max-height .35s ease;
+    }
+
+    .tape.is-open { max-height: 72dvh; }
+
+    .tape-grab {
+        display: block;
+        width: 100%;
+        font: inherit;
+        color: inherit;
+        background: none;
+        border: 0;
+        padding: 7px 14px 10px;
+        cursor: pointer;
+    }
+
+    .grab-bar {
+        display: block;
+        width: 2.4rem;
+        height: 4px;
+        margin: 0 auto 9px;
+        border-radius: 2px;
+        background: var(--line-strong);
+    }
+
+    .tape.is-open .tape-peek { display: none; }
+    .tape.is-open .tape-grab { padding-bottom: 2px; }
+
+    .tape-body { display: none; padding: 0 14px 12px; }
+    .tape.is-open .tape-body { display: flex; }
+
+    /* Room for the collapsed dock, so it never covers the last line of the footer. */
+    body { padding-bottom: calc(5.3rem + env(safe-area-inset-bottom, 0px)); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .tape { transition: none; }
 }
 
 .tape-head {
@@ -792,4 +903,9 @@ footer p { color: var(--ink-faint); font-size: .8rem; padding-block: 20px; margi
     padding: 11px 16px;
     font-size: .88rem;
     box-shadow: var(--shadow);
+}
+
+/* Clear of the bus-tape dock, which occupies the bottom of a narrow screen. */
+@media (max-width: 900px) {
+    .toast { bottom: calc(5.5rem + env(safe-area-inset-bottom, 0px)); }
 }

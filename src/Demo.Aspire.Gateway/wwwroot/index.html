@@ -137,21 +137,37 @@
      streamed live over Server-Sent Events. This is what "everything past Placed
      happens on RabbitMQ" actually looks like, rather than an assertion the page makes
      while quietly polling instead. -->
-<aside class="tape" aria-label="Live bus tape">
-    <div class="tape-head">
-        <h2>Bus tape</h2>
-        <span class="tape-status" id="tape-status" data-connected="false">
-            <span class="dot-live" aria-hidden="true"></span>
-            <span id="tape-status-text">connecting&hellip;</span>
+<aside class="tape" id="tape" aria-label="Live bus tape">
+    <!-- On a phone the rail becomes a dock at the bottom of the screen, and this is its
+         handle: a peek row carrying the newest message, which keeps moving while you are
+         still choosing seats. Hidden on a wide screen, where the whole tape is already
+         visible beside the page and there is nothing to open. -->
+    <button class="tape-grab" type="button" id="tape-toggle"
+            aria-expanded="false" aria-controls="tape-body">
+        <span class="grab-bar" aria-hidden="true"></span>
+        <span class="tape-peek" id="tape-peek">
+            <span class="svc" id="peek-svc">Bus tape</span>
+            <span class="event" id="peek-event">Waiting for the first message&hellip;</span>
+            <span class="at" id="peek-at"></span>
+            <span class="detail" id="peek-detail">Tap to open the tape</span>
         </span>
+    </button>
+    <div class="tape-body" id="tape-body">
+        <div class="tape-head">
+            <h2>Bus tape</h2>
+            <span class="tape-status" id="tape-status" data-connected="false">
+                <span class="dot-live" aria-hidden="true"></span>
+                <span id="tape-status-text">connecting&hellip;</span>
+            </span>
+        </div>
+        <label class="tape-filter">
+            <input type="checkbox" id="tape-filter">
+            This booking only
+        </label>
+        <ol class="tape-rows" id="tape-rows">
+            <li class="tape-empty">Waiting for the first message&hellip;</li>
+        </ol>
     </div>
-    <label class="tape-filter">
-        <input type="checkbox" id="tape-filter">
-        This booking only
-    </label>
-    <ol class="tape-rows" id="tape-rows">
-        <li class="tape-empty">Waiting for the first message&hellip;</li>
-    </ol>
 </aside>
 </div>
 
