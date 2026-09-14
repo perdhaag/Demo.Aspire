@@ -10,3 +10,14 @@ node_modules/
 # wwwroot is entirely build output now: the React app in src/Demo.Aspire.Web is bundled
 # into it by bun as part of the gateway's build. Nothing in it is hand-written.
 src/Demo.Aspire.Gateway/wwwroot/
+
+# `aspire publish` writes the environment overlay next to the chart, and it carries the
+# generated Postgres/Redis/RabbitMQ passwords in plaintext. The cluster gets those from
+# deploy/apps/demo-kino/secrets.enc.yaml (SOPS-encrypted) instead, so this must never be
+# committed -- named explicitly as well as by directory, since aspire-output/ is only the
+# default output path.
+values.k8s.yaml
+k8s-artifacts/
+
+# age private key, if it is ever generated inside the repo by mistake
+*.agekey

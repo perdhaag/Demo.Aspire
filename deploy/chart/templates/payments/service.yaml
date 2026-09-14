@@ -1,0 +1,20 @@
+---
+apiVersion: "v1"
+kind: "Service"
+metadata:
+  name: "payments-service"
+  labels:
+    app.kubernetes.io/name: "{{ .Chart.Name }}"
+    app.kubernetes.io/component: "payments"
+    app.kubernetes.io/instance: "{{ .Release.Name }}"
+spec:
+  type: "ClusterIP"
+  selector:
+    app.kubernetes.io/name: "{{ .Chart.Name }}"
+    app.kubernetes.io/component: "payments"
+    app.kubernetes.io/instance: "{{ .Release.Name }}"
+  ports:
+    - name: "http"
+      protocol: "TCP"
+      port: {{ .Values.parameters.payments.port_http | int }}
+      targetPort: {{ .Values.parameters.payments.port_http | int }}

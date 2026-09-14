@@ -97,6 +97,12 @@ Two things unrelated to the code have to be sorted out before `aspire run` will 
    dotnet tool install -g aspire.cli
    ```
 
+### Deploying it
+
+There is a GitOps path to a k3s cluster on a Raspberry Pi: pushing to `main` builds arm64
+images into GHCR, and Flux notices the new tags and rolls them out without anyone running
+`kubectl`. See [docs/gitops.md](docs/gitops.md).
+
 ## The flow
 
 Placing a booking is a single `POST /bookings` that returns `202 Accepted`. Everything

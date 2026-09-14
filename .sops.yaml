@@ -1,0 +1,7 @@
+# Only stringData/data are encrypted; the Kubernetes metadata stays readable so Flux's
+# kustomize-controller can still see what kind of object it is holding.
+creation_rules:
+  - path_regex: deploy/apps/.*\.enc\.yaml$
+    encrypted_regex: '^(data|stringData)$'
+    # Replace with the public key printed by `age-keygen` -- see docs/gitops.md.
+    age: REPLACE_WITH_YOUR_AGE_PUBLIC_KEY

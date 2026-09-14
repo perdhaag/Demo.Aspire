@@ -1,0 +1,195 @@
+# Image automation: how a push to main reaches the Pi without anyone running kubectl.
+#
+#   ImageRepository      polls GHCR for the tag list of one image
+#   ImagePolicy          picks the newest of those tags
+#   ImageUpdateAutomation rewrites the $imagepolicy setters in deploy/apps/demo-kino
+#                        and commits the result back to main, which helm-controller
+#                        then rolls out
+#
+# These live in flux-system rather than demo-kino because that is the namespace the
+# $imagepolicy markers in release.yaml name.
+---
+apiVersion: image.toolkit.fluxcd.io/v1
+kind: ImageRepository
+metadata:
+  name: screenings
+  namespace: flux-system
+spec:
+  image: ghcr.io/perdhaag/demo-aspire/screenings
+  interval: 5m
+  # The packages are private, so listing tags needs credentials. Same pull secret the
+  # cluster uses, created by docs/gitops.md.
+  secretRef:
+    name: ghcr-creds
+---
+apiVersion: image.toolkit.fluxcd.io/v1
+kind: ImagePolicy
+metadata:
+  name: screenings
+  namespace: flux-system
+spec:
+  imageRepositoryRef:
+    name: screenings
+  # Tags are main-<short sha>-<commit timestamp>. Git history is not necessarily the
+  # order images finish building, so the timestamp is extracted and compared numerically
+  # rather than trusting tag order.
+  filterTags:
+    pattern: '^main-[0-9a-f]+-(?P<ts>[0-9]+)$'
+    extract: '$ts'
+  policy:
+    numerical:
+      order: asc
+---
+apiVersion: image.toolkit.fluxcd.io/v1
+kind: ImageRepository
+metadata:
+  name: bookings
+  namespace: flux-system
+spec:
+  image: ghcr.io/perdhaag/demo-aspire/bookings
+  interval: 5m
+  # The packages are private, so listing tags needs credentials. Same pull secret the
+  # cluster uses, created by docs/gitops.md.
+  secretRef:
+    name: ghcr-creds
+---
+apiVersion: image.toolkit.fluxcd.io/v1
+kind: ImagePolicy
+metadata:
+  name: bookings
+  namespace: flux-system
+spec:
+  imageRepositoryRef:
+    name: bookings
+  # Tags are main-<short sha>-<commit timestamp>. Git history is not necessarily the
+  # order images finish building, so the timestamp is extracted and compared numerically
+  # rather than trusting tag order.
+  filterTags:
+    pattern: '^main-[0-9a-f]+-(?P<ts>[0-9]+)$'
+    extract: '$ts'
+  policy:
+    numerical:
+      order: asc
+---
+apiVersion: image.toolkit.fluxcd.io/v1
+kind: ImageRepository
+metadata:
+  name: payments
+  namespace: flux-system
+spec:
+  image: ghcr.io/perdhaag/demo-aspire/payments
+  interval: 5m
+  # The packages are private, so listing tags needs credentials. Same pull secret the
+  # cluster uses, created by docs/gitops.md.
+  secretRef:
+    name: ghcr-creds
+---
+apiVersion: image.toolkit.fluxcd.io/v1
+kind: ImagePolicy
+metadata:
+  name: payments
+  namespace: flux-system
+spec:
+  imageRepositoryRef:
+    name: payments
+  # Tags are main-<short sha>-<commit timestamp>. Git history is not necessarily the
+  # order images finish building, so the timestamp is extracted and compared numerically
+  # rather than trusting tag order.
+  filterTags:
+    pattern: '^main-[0-9a-f]+-(?P<ts>[0-9]+)$'
+    extract: '$ts'
+  policy:
+    numerical:
+      order: asc
+---
+apiVersion: image.toolkit.fluxcd.io/v1
+kind: ImageRepository
+metadata:
+  name: notifications
+  namespace: flux-system
+spec:
+  image: ghcr.io/perdhaag/demo-aspire/notifications
+  interval: 5m
+  # The packages are private, so listing tags needs credentials. Same pull secret the
+  # cluster uses, created by docs/gitops.md.
+  secretRef:
+    name: ghcr-creds
+---
+apiVersion: image.toolkit.fluxcd.io/v1
+kind: ImagePolicy
+metadata:
+  name: notifications
+  namespace: flux-system
+spec:
+  imageRepositoryRef:
+    name: notifications
+  # Tags are main-<short sha>-<commit timestamp>. Git history is not necessarily the
+  # order images finish building, so the timestamp is extracted and compared numerically
+  # rather than trusting tag order.
+  filterTags:
+    pattern: '^main-[0-9a-f]+-(?P<ts>[0-9]+)$'
+    extract: '$ts'
+  policy:
+    numerical:
+      order: asc
+---
+apiVersion: image.toolkit.fluxcd.io/v1
+kind: ImageRepository
+metadata:
+  name: gateway
+  namespace: flux-system
+spec:
+  image: ghcr.io/perdhaag/demo-aspire/gateway
+  interval: 5m
+  # The packages are private, so listing tags needs credentials. Same pull secret the
+  # cluster uses, created by docs/gitops.md.
+  secretRef:
+    name: ghcr-creds
+---
+apiVersion: image.toolkit.fluxcd.io/v1
+kind: ImagePolicy
+metadata:
+  name: gateway
+  namespace: flux-system
+spec:
+  imageRepositoryRef:
+    name: gateway
+  # Tags are main-<short sha>-<commit timestamp>. Git history is not necessarily the
+  # order images finish building, so the timestamp is extracted and compared numerically
+  # rather than trusting tag order.
+  filterTags:
+    pattern: '^main-[0-9a-f]+-(?P<ts>[0-9]+)$'
+    extract: '$ts'
+  policy:
+    numerical:
+      order: asc
+---
+apiVersion: image.toolkit.fluxcd.io/v1
+kind: ImageUpdateAutomation
+metadata:
+  name: demo-kino
+  namespace: flux-system
+spec:
+  interval: 5m
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  git:
+    checkout:
+      ref:
+        branch: main
+    commit:
+      author:
+        name: fluxcdbot
+        email: fluxcdbot@users.noreply.github.com
+      messageTemplate: |
+        chore: roll images to {{ range .Changed.Changes }}{{ .NewValue }} {{ end }}
+
+        Committed by the Pi cluster's image-automation controller.
+    push:
+      branch: main
+  update:
+    # Deliberately narrow: only the HelmRelease carries setters, and pointing the
+    # automation at deploy/chart as well would let it rewrite generated output.
+    path: ./deploy/apps/demo-kino
+    strategy: Setters

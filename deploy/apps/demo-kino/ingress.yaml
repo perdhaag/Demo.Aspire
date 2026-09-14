@@ -1,0 +1,25 @@
+# The chart only renders ClusterIP Services, so nothing is reachable from outside the Pi
+# without this. k3s ships Traefik as its default ingress controller, which is what the
+# empty ingressClassName picks up.
+#
+# Change the host to whatever name resolves to the Pi -- a hosts-file entry, a LAN DNS
+# record, or a tailnet name. The gateway fronts both the API and the bundled React UI, so
+# it is the only thing that needs exposing.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: demo-kino
+  namespace: demo-kino
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: kino.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: gateway-service
+                port:
+                  number: 8080

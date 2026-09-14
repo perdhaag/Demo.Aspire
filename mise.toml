@@ -1,3 +1,12 @@
 [tools]
 dotnet = "10"
 bun = "latest"
+aspire = "latest"
+helm = "latest"
+
+# GitOps tooling -- see docs/gitops.md. kubectl/flux2 drive the Pi cluster, sops and age
+# encrypt the infrastructure passwords that live in deploy/apps/demo-kino.
+kubectl = "latest"
+flux2 = "latest"
+sops = "latest"
+age = "latest"

@@ -1,0 +1,76 @@
+name: images
+
+# Builds one container image per deployable service and pushes it to GHCR. Nothing here
+# touches the cluster: the Pi finds the new images itself (see deploy/cluster/pi/images.yaml).
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'Directory.Build.props'
+      - 'Directory.Packages.props'
+      - '.github/workflows/images.yml'
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+  REPOSITORY: perdhaag/demo-aspire
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          - { name: screenings,    project: src/Demo.Aspire.Screenings/Demo.Aspire.Screenings.csproj }
+          - { name: bookings,      project: src/Demo.Aspire.Bookings/Demo.Aspire.Bookings.csproj }
+          - { name: payments,      project: src/Demo.Aspire.Payments/Demo.Aspire.Payments.csproj }
+          - { name: notifications, project: src/Demo.Aspire.Notifications/Demo.Aspire.Notifications.csproj }
+          - { name: gateway,       project: src/Demo.Aspire.Gateway/Demo.Aspire.Gateway.csproj }
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+
+      # Only the gateway needs it -- its csproj bundles the React app into wwwroot with
+      # `bun build` -- but installing it unconditionally keeps the matrix uniform and costs
+      # a couple of seconds.
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      # The SDK's container tooling pushes with the credentials in ~/.docker/config.json,
+      # so a plain docker login is all the auth it needs.
+      - name: Log in to GHCR
+        run: echo '${{ secrets.GITHUB_TOKEN }}' | docker login ${{ env.REGISTRY }} -u ${{ github.actor }} --password-stdin
+
+      # The Pi is arm64 and these runners are x64, but no emulation is involved: a .NET
+      # RID-specific publish cross-builds, and the aspnet base image is multi-arch, so the
+      # SDK pulls the arm64 variant to layer onto.
+      #
+      # The tag carries a commit timestamp because that is what Flux sorts on to decide
+      # which image is newest -- see the ImagePolicy in deploy/cluster/pi/images.yaml.
+      - name: Compute tag
+        id: tag
+        run: echo "value=main-$(git rev-parse --short HEAD)-$(git show -s --format=%ct HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Publish ${{ matrix.service.name }}
+        run: |
+          dotnet publish ${{ matrix.service.project }} \
+            --configuration Release \
+            --runtime linux-arm64 \
+            --self-contained false \
+            /t:PublishContainer \
+            -p:ContainerRegistry=${{ env.REGISTRY }} \
+            -p:ContainerRepository=${{ env.REPOSITORY }}/${{ matrix.service.name }} \
+            -p:ContainerImageTag=${{ steps.tag.outputs.value }}
+
+      - name: Summary
+        run: echo "pushed ${{ env.REGISTRY }}/${{ env.REPOSITORY }}/${{ matrix.service.name }}:${{ steps.tag.outputs.value }}" >> "$GITHUB_STEP_SUMMARY"

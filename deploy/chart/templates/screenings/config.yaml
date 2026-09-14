@@ -1,0 +1,26 @@
+---
+apiVersion: "v1"
+kind: "ConfigMap"
+metadata:
+  name: "screenings-config"
+  labels:
+    app.kubernetes.io/name: "{{ .Chart.Name }}"
+    app.kubernetes.io/component: "screenings"
+    app.kubernetes.io/instance: "{{ .Release.Name }}"
+data:
+  OTEL_DOTNET_EXPERIMENTAL_OTLP_RETRY: "{{ .Values.config.screenings.OTEL_DOTNET_EXPERIMENTAL_OTLP_RETRY }}"
+  ASPNETCORE_FORWARDEDHEADERS_ENABLED: "{{ .Values.config.screenings.ASPNETCORE_FORWARDEDHEADERS_ENABLED }}"
+  HTTP_PORTS: "{{ .Values.parameters.screenings.port_http | int | toString }}"
+  SCREENINGS_DB_HOST: "{{ .Values.config.screenings.SCREENINGS_DB_HOST }}"
+  SCREENINGS_DB_PORT: "{{ .Values.config.screenings.SCREENINGS_DB_PORT }}"
+  SCREENINGS_DB_USERNAME: "{{ .Values.config.screenings.SCREENINGS_DB_USERNAME }}"
+  SCREENINGS_DB_JDBCCONNECTIONSTRING: "{{ .Values.config.screenings.SCREENINGS_DB_JDBCCONNECTIONSTRING }}"
+  SCREENINGS_DB_DATABASENAME: "{{ .Values.config.screenings.SCREENINGS_DB_DATABASENAME }}"
+  CACHE_HOST: "{{ .Values.config.screenings.CACHE_HOST }}"
+  CACHE_PORT: "{{ .Values.config.screenings.CACHE_PORT }}"
+  MESSAGING_HOST: "{{ .Values.config.screenings.MESSAGING_HOST }}"
+  MESSAGING_PORT: "{{ .Values.config.screenings.MESSAGING_PORT }}"
+  MESSAGING_USERNAME: "{{ .Values.config.screenings.MESSAGING_USERNAME }}"
+  OTEL_EXPORTER_OTLP_ENDPOINT: "{{ .Values.config.screenings.OTEL_EXPORTER_OTLP_ENDPOINT }}"
+  OTEL_EXPORTER_OTLP_PROTOCOL: "{{ .Values.config.screenings.OTEL_EXPORTER_OTLP_PROTOCOL }}"
+  OTEL_SERVICE_NAME: "{{ .Values.config.screenings.OTEL_SERVICE_NAME }}"

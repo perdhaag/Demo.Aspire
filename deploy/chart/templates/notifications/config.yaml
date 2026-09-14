@@ -1,0 +1,23 @@
+---
+apiVersion: "v1"
+kind: "ConfigMap"
+metadata:
+  name: "notifications-config"
+  labels:
+    app.kubernetes.io/name: "{{ .Chart.Name }}"
+    app.kubernetes.io/component: "notifications"
+    app.kubernetes.io/instance: "{{ .Release.Name }}"
+data:
+  OTEL_DOTNET_EXPERIMENTAL_OTLP_RETRY: "{{ .Values.config.notifications.OTEL_DOTNET_EXPERIMENTAL_OTLP_RETRY }}"
+  ASPNETCORE_FORWARDEDHEADERS_ENABLED: "{{ .Values.config.notifications.ASPNETCORE_FORWARDEDHEADERS_ENABLED }}"
+  HTTP_PORTS: "{{ .Values.parameters.notifications.port_http | int | toString }}"
+  CACHE_HOST: "{{ .Values.config.notifications.CACHE_HOST }}"
+  CACHE_PORT: "{{ .Values.config.notifications.CACHE_PORT }}"
+  MESSAGING_HOST: "{{ .Values.config.notifications.MESSAGING_HOST }}"
+  MESSAGING_PORT: "{{ .Values.config.notifications.MESSAGING_PORT }}"
+  MESSAGING_USERNAME: "{{ .Values.config.notifications.MESSAGING_USERNAME }}"
+  Mail__Host: "{{ .Values.config.notifications.Mail__Host }}"
+  Mail__Port: "{{ .Values.config.notifications.Mail__Port }}"
+  OTEL_EXPORTER_OTLP_ENDPOINT: "{{ .Values.config.notifications.OTEL_EXPORTER_OTLP_ENDPOINT }}"
+  OTEL_EXPORTER_OTLP_PROTOCOL: "{{ .Values.config.notifications.OTEL_EXPORTER_OTLP_PROTOCOL }}"
+  OTEL_SERVICE_NAME: "{{ .Values.config.notifications.OTEL_SERVICE_NAME }}"

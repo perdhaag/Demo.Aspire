@@ -1,0 +1,39 @@
+---
+apiVersion: "apps/v1"
+kind: "StatefulSet"
+metadata:
+  name: "messaging-statefulset"
+  labels:
+    app.kubernetes.io/name: "{{ .Chart.Name }}"
+    app.kubernetes.io/component: "messaging"
+    app.kubernetes.io/instance: "{{ .Release.Name }}"
+spec:
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: "{{ .Chart.Name }}"
+        app.kubernetes.io/component: "messaging"
+        app.kubernetes.io/instance: "{{ .Release.Name }}"
+    spec:
+      containers:
+        - image: "docker.io/library/rabbitmq:4.3-management"
+          name: "messaging"
+          envFrom:
+            - configMapRef:
+                name: "messaging-config"
+            - secretRef:
+                name: "messaging-secrets"
+          ports:
+            - name: "tcp"
+              protocol: "TCP"
+              containerPort: 5672
+            - name: "management"
+              protocol: "TCP"
+              containerPort: 15672
+          imagePullPolicy: "IfNotPresent"
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: "{{ .Chart.Name }}"
+      app.kubernetes.io/component: "messaging"
+      app.kubernetes.io/instance: "{{ .Release.Name }}"
+  replicas: 1

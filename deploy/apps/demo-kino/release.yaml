@@ -1,0 +1,48 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: demo-kino
+  namespace: demo-kino
+spec:
+  interval: 10m
+  chart:
+    spec:
+      chart: deploy/chart
+      # The chart is regenerated from AppHost.cs, so it changes without a version bump.
+      # Tracking the git revision rather than the chart version is what makes those
+      # regenerations roll out.
+      reconcileStrategy: Revision
+      sourceRef:
+        kind: GitRepository
+        name: flux-system
+        namespace: flux-system
+      interval: 5m
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+  # Postgres, Redis and RabbitMQ passwords. Encrypted with SOPS in secrets.enc.yaml and
+  # decrypted into the cluster by the demo-kino Kustomization before this release runs.
+  valuesFrom:
+    - kind: Secret
+      name: demo-kino-secrets
+      valuesKey: values.yaml
+  # Everything else the chart needs is already correct in deploy/chart/values.yaml -- the
+  # templates build the service-discovery URLs and connection strings themselves. Only the
+  # image refs have to be stated here, and only because Flux rewrites them: the trailing
+  # $imagepolicy comments are the setters image-automation writes new tags into. Do not
+  # reformat those lines; the marker has to stay on the same line as the value.
+  values:
+    parameters:
+      screenings:
+        screenings_image: ghcr.io/perdhaag/demo-aspire/screenings:main-0000000-0 # {"$imagepolicy": "flux-system:screenings"}
+      bookings:
+        bookings_image: ghcr.io/perdhaag/demo-aspire/bookings:main-0000000-0 # {"$imagepolicy": "flux-system:bookings"}
+      payments:
+        payments_image: ghcr.io/perdhaag/demo-aspire/payments:main-0000000-0 # {"$imagepolicy": "flux-system:payments"}
+      notifications:
+        notifications_image: ghcr.io/perdhaag/demo-aspire/notifications:main-0000000-0 # {"$imagepolicy": "flux-system:notifications"}
+      gateway:
+        gateway_image: ghcr.io/perdhaag/demo-aspire/gateway:main-0000000-0 # {"$imagepolicy": "flux-system:gateway"}

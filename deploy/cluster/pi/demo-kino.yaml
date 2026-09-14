@@ -1,0 +1,21 @@
+# Reconciles deploy/apps/demo-kino. Kept separate from the flux-system Kustomization that
+# `flux bootstrap` writes, because this one needs the SOPS key to decrypt secrets.enc.yaml
+# and bootstrap's does not.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: demo-kino
+  namespace: flux-system
+spec:
+  interval: 10m
+  path: ./deploy/apps/demo-kino
+  prune: true
+  wait: true
+  timeout: 10m
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  decryption:
+    provider: sops
+    secretRef:
+      name: sops-age
