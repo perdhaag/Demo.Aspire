@@ -46,11 +46,6 @@ jobs:
         with:
           bun-version: latest
 
-      # The SDK's container tooling pushes with the credentials in ~/.docker/config.json,
-      # so a plain docker login is all the auth it needs.
-      - name: Log in to GHCR
-        run: echo '${{ secrets.GITHUB_TOKEN }}' | docker login ${{ env.REGISTRY }} -u ${{ github.actor }} --password-stdin
-
       # The Pi is arm64 and these runners are x64, but no emulation is involved: a .NET
       # RID-specific publish cross-builds, and the aspnet base image is multi-arch, so the
       # SDK pulls the arm64 variant to layer onto.
@@ -61,7 +56,15 @@ jobs:
         id: tag
         run: echo "value=main-$(git rev-parse --short HEAD)-$(git show -s --format=%ct HEAD)" >> "$GITHUB_OUTPUT"
 
+      # Credentials go in explicitly rather than through `docker login`. The SDK can read
+      # ~/.docker/config.json, but doing so failed against ghcr.io with CONTAINER1016 even
+      # after a successful login. The PUSH_ prefix matters: the generic
+      # DOTNET_CONTAINER_REGISTRY_UNAME/PWORD pair would also be offered to the anonymous
+      # pull of the mcr.microsoft.com base image.
       - name: Publish ${{ matrix.service.name }}
+        env:
+          DOTNET_CONTAINER_PUSH_REGISTRY_UNAME: ${{ github.actor }}
+          DOTNET_CONTAINER_PUSH_REGISTRY_PWORD: ${{ secrets.GITHUB_TOKEN }}
         run: |
           dotnet publish ${{ matrix.service.project }} \
             --configuration Release \
