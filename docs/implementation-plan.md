@@ -1,5 +1,11 @@
 # Implementation plan — five features to make the demo visible
 
+> **Historical.** All five features shipped, and the front end has since been rewritten
+> from the `app.js` this document refers to into React — see
+> [react-ui-plan.md](react-ui-plan.md). The file names below (`wwwroot/app.js`,
+> `wwwroot/app.css`) no longer exist; the behaviour they describe does, in
+> `src/Demo.Aspire.Web`.
+
 Five features, in the order they should be built. Each one is written so it can be
 picked up on its own, but features 2–5 all read from the event feed that feature 1
 introduces, so **feature 1 comes first**.

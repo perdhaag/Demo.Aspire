@@ -1,0 +1,23 @@
+{
+  "name": "demo-kino-web",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bun run dev-server.ts",
+    "build": "bun build ./src/index.html --outdir ../Demo.Aspire.Gateway/wwwroot --production --sourcemap=linked",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
+  },
+  "devDependencies": {
+    "@happy-dom/global-registrator": "^19.0.0",
+    "@testing-library/react": "^16.3.0",
+    "@types/bun": "^1.4.2",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "typescript": "^7.0.2"
+  }
+}

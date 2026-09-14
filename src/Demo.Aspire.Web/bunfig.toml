@@ -1,0 +1,4 @@
+[test]
+# React Testing Library needs a DOM. happy-dom registers one globally before any test
+# file is loaded, which is why this is a preload rather than a call in each test.
+preload = ["./test-setup.ts"]

@@ -1,0 +1,3 @@
+[tools]
+dotnet = "10"
+bun = "latest"

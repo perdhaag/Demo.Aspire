@@ -5,3 +5,8 @@ TestResults/
 .idea/
 *.user
 .claude/
+node_modules/
+
+# wwwroot is entirely build output now: the React app in src/Demo.Aspire.Web is bundled
+# into it by bun as part of the gateway's build. Nothing in it is hand-written.
+src/Demo.Aspire.Gateway/wwwroot/
