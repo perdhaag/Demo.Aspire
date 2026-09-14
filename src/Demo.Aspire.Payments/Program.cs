@@ -1,6 +1,7 @@
 using System.Reflection;
 using Demo.Aspire.Contracts;
 using Demo.Aspire.Payments.Domain;
+using Demo.Aspire.Payments.Features.Chaos;
 using Demo.Aspire.Payments.Infrastructure;
 using Demo.Aspire.Platform;
 using Demo.Aspire.Platform.Endpoints;
@@ -28,6 +29,7 @@ builder.Services.Configure<SimulatedPaymentGatewayOptions>(
 builder.Services.AddScoped<IPaymentRepository, PaymentRepository>();
 builder.Services.AddScoped<IUnitOfWork, PaymentsUnitOfWork>();
 builder.Services.AddSingleton<IPaymentGateway, SimulatedPaymentGateway>();
+builder.Services.AddSingleton<ChaosSwitch>();
 
 // Registered before the bus so the outbox tables exist by the time it starts.
 builder.Services.AddHostedService<DatabaseInitializer<PaymentsDbContext>>();

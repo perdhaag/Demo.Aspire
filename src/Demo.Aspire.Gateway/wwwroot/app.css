@@ -453,6 +453,37 @@ h2 {
 /* The last 30s of a seat hold, ticking down live — see tickHoldCountdowns in app.js. */
 .flow li.countdown-warn .who { color: var(--warn); font-weight: 500; }
 
+/* ── Chaos strip ──────────────────────────────────────────────────────────── */
+
+.chaos-mark { background: var(--warn); color: var(--panel); }
+
+.chaos-toggles {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.chip {
+    font: inherit;
+    font-size: .84rem;
+    color: var(--ink-soft);
+    background: var(--page);
+    border: 1px solid var(--line-strong);
+    border-radius: 999px;
+    padding: 7px 14px;
+    cursor: pointer;
+    transition: border-color .12s, color .12s, background .12s;
+}
+
+.chip:hover { border-color: var(--ink-faint); }
+
+.chip[aria-pressed="true"] {
+    background: var(--warn-soft);
+    border-color: var(--warn);
+    color: var(--warn);
+    font-weight: 500;
+}
+
 /* ── Bus tape ─────────────────────────────────────────────────────────────── */
 
 .tape {

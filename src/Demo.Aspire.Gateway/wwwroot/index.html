@@ -73,6 +73,21 @@
         </div>
     </section>
 
+    <!-- Not a step in the customer's journey — a control over Payments' one dependency,
+         so the reliability this system claims (the outbox, the retry policy) is
+         something you can make happen on purpose rather than take on faith. -->
+    <section class="chaos" aria-labelledby="chaos-heading">
+        <h2 id="chaos-heading"><span class="step chaos-mark" aria-hidden="true">⚡</span>Payments: demo control</h2>
+        <div class="panel">
+            <div class="chaos-toggles" role="group" aria-label="Chaos controls for Payments">
+                <button type="button" class="chip" id="chaos-pause" aria-pressed="false">Pause Payments</button>
+                <button type="button" class="chip" id="chaos-slow" aria-pressed="false">Slow (5s)</button>
+                <button type="button" class="chip" id="chaos-fail" aria-pressed="false">Fail twice, then succeed</button>
+            </div>
+            <p class="aside" id="chaos-note">Payments is behaving normally.</p>
+        </div>
+    </section>
+
     <!-- Step 3 ─ the point of the demo: the choreography, as it happens. -->
     <section id="flow-section" aria-labelledby="step-flow" hidden>
         <h2 id="step-flow"><span class="step">3</span>What happens next</h2>

@@ -1,5 +1,6 @@
 using Demo.Aspire.Contracts;
 using Demo.Aspire.Payments.Domain;
+using Demo.Aspire.Payments.Features.Chaos;
 using Demo.Aspire.Platform.Domain;
 using Demo.Aspire.Platform.Messaging;
 using Demo.Aspire.SharedKernel;
@@ -18,6 +19,7 @@ public sealed class AuthorizePaymentConsumer(
     IUnitOfWork unitOfWork,
     IPaymentGateway gateway,
     CorrelationContext correlation,
+    ChaosSwitch chaos,
     TimeProvider clock,
     ILogger<AuthorizePaymentConsumer> logger) : IConsumer<PaymentAuthorizationRequested>
 {
@@ -25,6 +27,11 @@ public sealed class AuthorizePaymentConsumer(
     {
         var message = context.Message;
         correlation.Current = message.CorrelationId;
+
+        // While paused, this message stays exactly where a stalled real card network
+        // would leave it: received but not yet acknowledged. Nothing here is retrying —
+        // the queue is simply waiting, same as MassTransit already does mid-redelivery.
+        await chaos.WaitWhilePausedAsync(context.CancellationToken);
 
         var booking = new BookingReference(message.BookingId);
         var existing = await payments.FindForBookingAsync(booking, context.CancellationToken);

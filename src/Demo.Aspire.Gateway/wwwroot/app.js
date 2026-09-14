@@ -18,6 +18,8 @@ const state = {
     holdPolicySeconds: 180, // refreshed from GET /screenings/hold-policy; the seat
                             // countdown ring assumes this as the hold's full length,
                             // since the seat map does not carry when a hold began.
+    chaosMode: 'None',      // refreshed from GET /payments/chaos on every tick, since
+                            // "Failing" clears itself server-side without a click.
 };
 
 /* ── Transport ────────────────────────────────────────────────────────────── */
@@ -258,6 +260,43 @@ el('checkout').onsubmit = async event => {
     }
 };
 
+/* ── Chaos: a demo switch on Payments' simulated card network ────────────── */
+
+const CHAOS_NOTES = {
+    None: 'Payments is behaving normally.',
+    Paused: 'Payments is paused — an authorization already in flight stays unacknowledged on the queue. Nothing is retrying it; it is simply waiting.',
+    Slow: 'Every authorization now takes about five seconds.',
+    Failing: 'The next authorization or two will fail. MassTransit’s retry policy keeps trying — the tape will show the faults, then a success.',
+};
+
+function applyChaosMode(mode) {
+    state.chaosMode = mode;
+    el('chaos-pause').setAttribute('aria-pressed', String(mode === 'Paused'));
+    el('chaos-slow').setAttribute('aria-pressed', String(mode === 'Slow'));
+    el('chaos-fail').setAttribute('aria-pressed', String(mode === 'Failing'));
+    el('chaos-note').textContent = CHAOS_NOTES[mode] ?? '';
+}
+
+async function setChaosMode(mode) {
+    try {
+        applyChaosMode((await api('/payments/chaos', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ mode }),
+        })).mode);
+    } catch (error) {
+        toast(error.message);
+    }
+}
+
+// Pause and Slow are switches — clicking an active one turns it back off. "Fail twice,
+// then succeed" is a one-shot action: the server counts the failures down and returns
+// itself to None on its own, which is why it is never rendered as an active toggle for
+// longer than the next poll takes to notice.
+el('chaos-pause').onclick = () => setChaosMode(state.chaosMode === 'Paused' ? 'None' : 'Paused');
+el('chaos-slow').onclick = () => setChaosMode(state.chaosMode === 'Slow' ? 'None' : 'Slow');
+el('chaos-fail').onclick = () => setChaosMode('Failing');
+
 /* ── Step 3: the flow ─────────────────────────────────────────────────────── */
 
 function track(bookingId) {
@@ -300,11 +339,18 @@ function drawFlow(booking, payment, mail) {
             payBeforeUtc: booking.payBeforeUtc && !payment && !failed ? booking.payBeforeUtc : null,
         },
         {
-            what: payment ? (payment.status === 'Captured' ? 'Payment captured' : 'Payment declined') : 'Taking payment…',
+            // The chaos strip's "Pause Payments" is named here on purpose: without it,
+            // a paused payment and a slow one look identical — both just say "pending".
+            what: payment
+                ? (payment.status === 'Captured' ? 'Payment captured' : 'Payment declined')
+                : (!failed && state.chaosMode === 'Paused' ? 'Payments is paused…' : 'Taking payment…'),
             who: 'Payments — publishes the outcome either way',
             at: payment?.decidedAtUtc ?? null,
             state: payment ? (payment.status === 'Captured' ? 'done' : 'failed') : (failed ? 'failed' : 'pending'),
-            note: payment?.reference ?? payment?.declineReason ?? null,
+            note: payment?.reference ?? payment?.declineReason
+                ?? (!payment && !failed && state.chaosMode === 'Paused'
+                    ? 'the message is waiting on the queue, not retrying'
+                    : null),
         },
         {
             what: booking.status === 'Confirmed' ? 'Booking confirmed'
@@ -549,15 +595,20 @@ const settled = booking => booking?.status === 'Confirmed' || booking?.status ==
 async function refresh() {
     const email = el('email').value.trim();
 
-    const [bookings, payments, mail] = await Promise.all([
+    const [bookings, payments, mail, chaos] = await Promise.all([
         email.includes('@') ? api(`/bookings?customerEmail=${encodeURIComponent(email)}`).catch(() => []) : [],
         api('/payments?take=25').catch(() => []),
         api('/notifications?take=25').catch(() => []),
+        api('/payments/chaos').catch(() => null),
     ]);
 
     drawBookings(bookings);
     drawPayments(payments);
     drawMail(mail);
+
+    // Re-synced here, not only from a click, because "Failing" clears itself back to
+    // None server-side once it has burned through its failures.
+    if (chaos) applyChaosMode(chaos.mode);
 
     if (state.tracked) {
         const booking = bookings.find(candidate => candidate.bookingId === state.tracked)

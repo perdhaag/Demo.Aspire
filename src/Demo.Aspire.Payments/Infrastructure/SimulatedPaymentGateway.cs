@@ -1,5 +1,6 @@
 using System.Globalization;
 using Demo.Aspire.Payments.Domain;
+using Demo.Aspire.Payments.Features.Chaos;
 using Demo.Aspire.SharedKernel;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -25,9 +26,12 @@ public sealed class SimulatedPaymentGatewayOptions
 /// </summary>
 internal sealed class SimulatedPaymentGateway(
     IOptions<SimulatedPaymentGatewayOptions> options,
+    ChaosSwitch chaos,
     TimeProvider clock,
     ILogger<SimulatedPaymentGateway> logger) : IPaymentGateway
 {
+    private static readonly TimeSpan ChaosSlowLatency = TimeSpan.FromSeconds(5);
+
     public async Task<AuthorizationOutcome> AuthorizeAsync(
         EmailAddress payer,
         Money amount,
@@ -35,7 +39,13 @@ internal sealed class SimulatedPaymentGateway(
     {
         var settings = options.Value;
 
-        await Task.Delay(settings.Latency, clock, cancellationToken);
+        await Task.Delay(chaos.IsSlow ? ChaosSlowLatency : settings.Latency, clock, cancellationToken);
+
+        if (chaos.TryConsumeFailure())
+        {
+            logger.LogWarning("Chaos: simulating a card network failure for {Payer}.", payer);
+            throw new InvalidOperationException("The card network refused the connection.");
+        }
 
         if (payer.LocalPart.Contains("decline", StringComparison.OrdinalIgnoreCase))
         {
