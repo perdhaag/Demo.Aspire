@@ -51,14 +51,27 @@ Needs the **64-bit** Raspberry Pi OS — the .NET images are `linux-arm64` and w
 a 32-bit userland. 8 GB of RAM is realistic for this stack: Postgres, Redis, RabbitMQ, the
 Aspire dashboard, Mailpit and five .NET services.
 
-k3s needs cgroup memory accounting, which the Pi kernel does not enable by default. Append
-to the single line in `/boot/firmware/cmdline.txt` and reboot:
+k3s needs the memory cgroup, and on a Pi 5 it is actively disabled: the firmware puts
+`cgroup_disable=memory` on the kernel command line. Note that it is *not* in
+`/boot/firmware/cmdline.txt` — grepping that file finds nothing, and `/proc/cmdline` is the
+only place it shows up. It cannot be removed, only overridden, which works because the
+contents of `cmdline.txt` are appended after the firmware's own parameters and the kernel
+lets the last one win. Append to the single line in `/boot/firmware/cmdline.txt`:
 
 ```
-cgroup_memory=1 cgroup_enable=memory
+cgroup_enable=memory cgroup_memory=1
 ```
 
-Then:
+That file must stay exactly one line, so append to it deliberately rather than with a
+careless `sed` — a wrong edit here does not boot. Reboot, then confirm the controller
+appeared before going further:
+
+```bash
+cat /sys/fs/cgroup/cgroup.controllers     # must now include 'memory'
+```
+
+Without it k3s starts, reaches the datastore, and exits with
+`failed to find memory cgroup (v2)`, leaving the service stuck in `activating`.
 
 ```bash
 curl -sfL https://get.k3s.io | sh -
@@ -67,31 +80,48 @@ sudo k3s kubectl get nodes        # should read Ready
 
 k3s brings its own Traefik ingress controller and local-path storage class.
 
-To drive it from your laptop, copy `/etc/rancher/k3s/k3s.yaml` off the Pi, replace
-`127.0.0.1` with the Pi's address, and merge it into `~/.kube/config`. Your current context
-is `kind-kind`, so remember to switch.
+### Reaching the API from your workstation
+
+The Pi firewalls 6443, so k3s is not reachable across the LAN even though it listens on
+`*:6443`. Rather than opening a port on a machine that also runs `cloudflared`, tunnel over
+SSH and point the kubeconfig at the tunnel — k3s's certificate already covers `127.0.0.1`,
+so TLS verifies with no `--insecure-skip-tls-verify`:
+
+```bash
+ssh -fN -L 6443:127.0.0.1:6443 per@pi
+```
+
+Copy `/etc/rancher/k3s/k3s.yaml` off the Pi, leave the server as `https://127.0.0.1:6443`,
+rename its cluster/user/context away from `default`, and merge it into `~/.kube/config`
+alongside whatever is already there. The tunnel is per-session: if `kubectl` starts timing
+out, it has died and wants restarting. Opening 6443 on the Pi's firewall is the alternative
+if you would rather not depend on the tunnel.
 
 ### 2. GHCR credentials
 
 The packages are private, so the cluster needs a pull credential in two places: `demo-kino`
 to pull images, and `flux-system` so image-reflector-controller can list tags.
 
-Create a GitHub PAT (classic) with **`read:packages`**, then:
+Both namespaces are created by Flux, so this step comes *after* bootstrap. Create a GitHub
+PAT (classic) with **`read:packages`**, then:
 
 ```bash
-kubectl create namespace demo-kino
 for ns in demo-kino flux-system; do
-  kubectl create secret docker-registry ghcr-creds \
-    --namespace "$ns" \
+  kubectl -n "$ns" create secret docker-registry ghcr-creds \
     --docker-server=ghcr.io \
     --docker-username=perdhaag \
     --docker-password="$GHCR_PAT"
 done
 ```
 
-`flux-system` won't exist until after bootstrap, so run that loop's second half afterwards
-if it complains. These two are the only things created by hand — the deliberate exception,
-since they are the credentials that let the cluster read everything else.
+Both are needed and they fail differently: without the `demo-kino` copy the pods sit in
+`ImagePullBackOff`; without the `flux-system` copy the ImageRepositories report
+`failed to configure authentication options` and no new image is ever detected.
+
+These two secrets and the SOPS key below are the only things created by hand — the
+deliberate exception, since they are the credentials that let the cluster read everything
+else. Whatever token you use is stored in the cluster permanently, so scope it to
+`read:packages` and nothing more.
 
 ### 3. SOPS key
 
@@ -168,6 +198,26 @@ flux reconcile helmrelease demo-kino -n demo-kino --with-source
 flux get images policy                       # what tag does Flux think is newest?
 flux logs --follow --level=error
 ```
+
+## Current state
+
+The cluster is up and the loop is closed. `raspberrypi` runs k3s v1.36.4 alongside the
+existing Home Assistant / Mosquitto / cloudflared workload, Flux 2.9.5 is bootstrapped with
+both image controllers, and all ten pods are healthy. Automation has already made its first
+five commits to `main`, rolling the placeholder tags to `main-5cc9d27-1789399580`.
+
+Verified end to end on the Pi: `POST /api/bookings` returned 202, the booking reached
+`Confirmed` in about ten seconds, and the ticket arrived in Mailpit — so all five services,
+Postgres, Redis and RabbitMQ are working on arm64.
+
+Two loose ends:
+
+* The Ingress answers to `kino.local`, which nothing resolves yet. Point it at 192.168.1.230
+  in your hosts file or LAN DNS, or change the host in
+  `deploy/apps/demo-kino/ingress.yaml`.
+* `ghcr-creds` currently holds a `gh` CLI token carrying `repo`, `write:packages`, `gist`
+  and `read:org`. It works, but it is far broader than a pull credential needs; replacing it
+  with a `read:packages` PAT is a one-command swap.
 
 ## Things worth knowing
 
