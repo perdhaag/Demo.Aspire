@@ -4,3 +4,4 @@ aspire-output/
 TestResults/
 .idea/
 *.user
+.claude/
