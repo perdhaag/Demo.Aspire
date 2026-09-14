@@ -2,8 +2,10 @@ using Demo.Aspire.Contracts;
 using Demo.Aspire.Platform.Domain;
 using Demo.Aspire.Platform.Messaging;
 using Demo.Aspire.Screenings.Domain;
+using Demo.Aspire.Screenings.Features.HoldPolicy;
 using Demo.Aspire.SharedKernel;
 using MassTransit;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
 namespace Demo.Aspire.Screenings.Features.HoldSeats;
@@ -17,6 +19,7 @@ public sealed class HoldSeatsConsumer(
     IUnitOfWork unitOfWork,
     IPublishEndpoint publishEndpoint,
     CorrelationContext correlation,
+    SeatHoldPolicy holdPolicy,
     TimeProvider clock,
     ILogger<HoldSeatsConsumer> logger) : IConsumer<BookingPlaced>
 {
@@ -43,11 +46,23 @@ public sealed class HoldSeatsConsumer(
             return;
         }
 
-        var hold = screening.HoldSeats(booking, requested.Value, clock.GetUtcNow());
+        var hold = screening.HoldSeats(booking, requested.Value, clock.GetUtcNow(), holdPolicy.Duration);
 
         // Whether the hold succeeded or was refused, the aggregate has already raised the
         // matching domain event. Saving is what turns that into an outbox row.
-        await unitOfWork.SaveChangesAsync(context.CancellationToken);
+        try
+        {
+            await unitOfWork.SaveChangesAsync(context.CancellationToken);
+        }
+        catch (DbUpdateConcurrencyException exception)
+        {
+            // Two bookings asked for the same seat in the same instant (see "Race a
+            // rival" in the demo UI) and this one lost the write. MassTransit's retry
+            // policy will run this consumer again in a moment, and the aggregate will
+            // correctly see the seat as taken on that next attempt — this is not an
+            // error to recover from here, just a race to let the retry settle.
+            throw new InvalidOperationException("optimistic concurrency — retrying", exception);
+        }
 
         logger.LogInformation(
             "Booking {BookingId} on screening {ScreeningId}: {Outcome}",

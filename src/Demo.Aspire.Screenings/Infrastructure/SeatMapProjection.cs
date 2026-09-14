@@ -17,7 +17,7 @@ public sealed record SeatMapView(
     int AvailableSeats,
     IReadOnlyList<SeatView> Seats);
 
-public sealed record SeatView(string Number, string Status);
+public sealed record SeatView(string Number, string Status, DateTimeOffset? HoldExpiresAtUtc);
 
 [JsonSerializable(typeof(SeatMapView))]
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]
@@ -77,9 +77,15 @@ public sealed class SeatMapProjection(IDistributedCache cache, ILogger<SeatMapPr
         [
             .. screening.Seats
                 .OrderBy(seat => seat.Number)
-                .Select(seat => new SeatView(
-                    seat.Number.ToString(),
-                    seat.IsAvailableAt(now) ? nameof(SeatStatus.Available) : seat.Status.ToString())),
+                .Select(seat =>
+                {
+                    var available = seat.IsAvailableAt(now);
+
+                    return new SeatView(
+                        seat.Number.ToString(),
+                        available ? nameof(SeatStatus.Available) : seat.Status.ToString(),
+                        available ? null : seat.HoldExpiresAtUtc);
+                }),
         ]);
 
     private static string KeyFor(ScreeningId screeningId) => $"screenings:seat-map:{screeningId.Value}";

@@ -51,6 +51,10 @@ var screenings = builder.AddProject<Projects.Demo_Aspire_Screenings>(ResourceNam
 
 var bookings = builder.AddProject<Projects.Demo_Aspire_Bookings>(ResourceNames.Services.Bookings)
     .WithReference(bookingsDb).WaitFor(bookingsDb)
+    // Not for its own data — Bookings has none in Redis — but every service tees its
+    // published and consumed messages onto the bus tape feed the gateway streams to
+    // the demo UI (see Platform/Messaging/BusTap.cs), and that feed lives here.
+    .WithReference(cache).WaitFor(cache)
     .WithReference(messaging).WaitFor(messaging)
     // Bookings asks Screenings for a price over HTTP before it creates a booking, so it
     // needs service discovery as well as the bus.
@@ -59,6 +63,8 @@ var bookings = builder.AddProject<Projects.Demo_Aspire_Bookings>(ResourceNames.S
 
 var payments = builder.AddProject<Projects.Demo_Aspire_Payments>(ResourceNames.Services.Payments)
     .WithReference(paymentsDb).WaitFor(paymentsDb)
+    // Same reason as Bookings above: the bus tape, not a cache for Payments' own data.
+    .WithReference(cache).WaitFor(cache)
     .WithReference(messaging).WaitFor(messaging)
     .WithHttpHealthCheck("/health");
 
@@ -70,12 +76,20 @@ var notifications = builder.AddProject<Projects.Demo_Aspire_Notifications>(Resou
     .WaitFor(mail)
     .WithHttpHealthCheck("/health");
 
+// Best-effort only: Aspire does not publish the dashboard's browsable URL to other
+// resources the way it does a project's own endpoints (the dashboard is deliberately
+// excluded from service discovery), so this reads the app host's own listen address —
+// which is what `aspire run` and an IDE launch profile both set for the process that
+// hosts the embedded dashboard. When it is not set, the UI simply hides the link.
+var dashboardUrl = builder.Configuration["ASPNETCORE_URLS"]?.Split(';')[0];
+
 builder.AddProject<Projects.Demo_Aspire_Gateway>(ResourceNames.Services.Gateway)
     .WithReference(cache).WaitFor(cache)
     .WithReference(screenings)
     .WithReference(bookings)
     .WithReference(payments)
     .WithReference(notifications)
+    .WithEnvironment("Demo__DashboardUrl", dashboardUrl ?? string.Empty)
     .WithExternalHttpEndpoints()
     .WithUrlForEndpoint("http", url => url.DisplayText = "Demo Kino");
 

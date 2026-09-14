@@ -2,6 +2,7 @@ using Demo.Aspire.Contracts;
 using Demo.Aspire.Platform.Domain;
 using Demo.Aspire.Platform.Messaging;
 using Demo.Aspire.Screenings.Domain;
+using Demo.Aspire.Screenings.Features.HoldPolicy;
 using Demo.Aspire.SharedKernel;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
@@ -18,16 +19,15 @@ namespace Demo.Aspire.Screenings.Features.ExpireSeatHolds;
 /// </summary>
 internal sealed class SeatHoldSweeper(
     IServiceScopeFactory scopeFactory,
+    SeatHoldPolicy holdPolicy,
     TimeProvider clock,
     ILogger<SeatHoldSweeper> logger) : BackgroundService
 {
-    private static readonly TimeSpan Interval = TimeSpan.FromSeconds(15);
-
     private const int BatchSize = 25;
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        using var timer = new PeriodicTimer(Interval, clock);
+        using var timer = new PeriodicTimer(holdPolicy.SweepInterval, clock);
 
         while (await timer.WaitForNextTickAsync(stoppingToken))
         {
@@ -40,6 +40,14 @@ internal sealed class SeatHoldSweeper(
                 // A failed sweep is not fatal: the next tick tries again, and stale holds
                 // are treated as available by the aggregate in the meantime.
                 logger.LogError(exception, "Seat hold sweep failed.");
+            }
+
+            // Re-read every tick rather than once at start-up, so flipping the demo's
+            // "short holds" switch tightens the sweep on its very next pass instead of
+            // waiting for this instance to restart.
+            if (timer.Period != holdPolicy.SweepInterval)
+            {
+                timer.Period = holdPolicy.SweepInterval;
             }
         }
     }

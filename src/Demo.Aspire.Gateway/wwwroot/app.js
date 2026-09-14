@@ -2,7 +2,8 @@
 // so the browser never learns that there are four services behind it.
 //
 // Placing a booking is one POST that returns 202. The rest of the story finishes on the
-// message bus, which is why this page polls: there is nothing to await.
+// message bus — the bus tape (see "Step 3.5" below) is what shows that happening, so
+// this page only needs to poll a read model as a slow safety net, not as its main loop.
 
 const API = '/api';
 
@@ -13,7 +14,16 @@ const state = {
     screeningId: null,
     seatMap: null,
     selected: new Set(),
-    tracked: null,      // the booking whose flow we are drawing
+    tracked: null,          // the booking whose flow we are drawing
+    holdPolicySeconds: 180, // refreshed from GET /screenings/hold-policy; the seat
+                            // countdown ring assumes this as the hold's full length,
+                            // since the seat map does not carry when a hold began.
+    chaosMode: 'None',      // refreshed from GET /payments/chaos on every tick, since
+                            // "Failing" clears itself server-side without a click.
+    entriesByCorrelation: new Map(), // bus tape entries seen this session, grouped by
+                                     // the booking id they belong to — this is what the
+                                     // trace waterfall is built from.
+    dashboardUrl: '',       // from GET /api/demo; empty just hides the dashboard link.
 };
 
 /* ── Transport ────────────────────────────────────────────────────────────── */
@@ -46,6 +56,9 @@ function toast(message) {
 const clock = new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit' });
 const dayAndTime = new Intl.DateTimeFormat(undefined, {
     weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
+});
+const preciseClock = new Intl.DateTimeFormat(undefined, {
+    hour: '2-digit', minute: '2-digit', second: '2-digit', fractionalSecondDigits: 3,
 });
 
 const money = (amount, currency) =>
@@ -136,6 +149,7 @@ async function loadSeatMap() {
                 });
 
                 button.dataset.status = seat.status;
+                if (seat.holdExpiresAtUtc) button.dataset.holdExpires = seat.holdExpiresAtUtc;
                 button.setAttribute('aria-label', `Seat ${seat.number}, ${seat.status}`);
                 button.setAttribute('aria-pressed', String(state.selected.has(seat.number)));
                 button.onclick = () => toggleSeat(seat.number);
@@ -165,6 +179,50 @@ function toggleSeat(number) {
     updateTally();
 }
 
+// One rAF loop for every held seat currently on screen, rather than a timer per seat.
+// --hold-pct assumes the seat's full hold length was state.holdPolicySeconds, which is
+// true unless the policy changed mid-hold — close enough for a countdown, and the seat
+// map does not carry when a hold actually began.
+function tickHoldRings() {
+    const now = Date.now();
+
+    for (const button of document.querySelectorAll('.seat[data-hold-expires]')) {
+        const remainingMs = new Date(button.dataset.holdExpires).getTime() - now;
+        const totalMs = state.holdPolicySeconds * 1000;
+        const pct = Math.max(0, Math.min(100, (remainingMs / totalMs) * 100));
+        button.style.setProperty('--hold-pct', pct.toFixed(1));
+    }
+
+    requestAnimationFrame(tickHoldRings);
+}
+
+requestAnimationFrame(tickHoldRings);
+
+/* ── Short holds: a demo switch on Screenings' hold policy ───────────────── */
+
+async function loadHoldPolicy() {
+    const policy = await api('/screenings/hold-policy');
+    state.holdPolicySeconds = policy.seconds;
+    el('short-holds').checked = policy.seconds <= 30;
+}
+
+el('short-holds').onchange = async () => {
+    const seconds = el('short-holds').checked ? 20 : 180;
+
+    try {
+        const policy = await api('/screenings/hold-policy', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ seconds }),
+        });
+
+        state.holdPolicySeconds = policy.seconds;
+        toast(`New seat holds now last ${policy.seconds}s.`);
+    } catch (error) {
+        toast(error.message);
+    }
+};
+
 function updateTally() {
     const count = state.selected.size;
     const price = state.seatMap?.ticketPrice ?? 0;
@@ -178,22 +236,26 @@ function updateTally() {
         : `${count} × ${money(price, state.seatMap.currency)} = ${money(count * price, state.seatMap.currency)}`;
 
     el('book').disabled = count === 0;
+    el('race').disabled = count === 0;
+}
+
+const RIVAL_EMAIL = 'rival@example.com';
+
+function placeBooking(customerEmail, seats) {
+    return api('/bookings', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ screeningId: state.screeningId, customerEmail, seats }),
+    });
 }
 
 el('checkout').onsubmit = async event => {
     event.preventDefault();
     el('book').disabled = true;
+    el('race').disabled = true;
 
     try {
-        const placed = await api('/bookings', {
-            method: 'POST',
-            headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({
-                screeningId: state.screeningId,
-                customerEmail: el('email').value.trim(),
-                seats: [...state.selected].sort(),
-            }),
-        });
+        const placed = await placeBooking(el('email').value.trim(), [...state.selected].sort());
 
         track(placed.bookingId);
         state.selected.clear();
@@ -206,21 +268,124 @@ el('checkout').onsubmit = async event => {
     }
 };
 
+// Both bookings ask for the same seats on the same screening in the same instant.
+// Screenings' seat map is the one consistency boundary in this system (see
+// Screening.HoldSeats), so exactly one of the two can actually hold them — the other's
+// flow shows a rejected hold rather than a rollback, because there was never anything
+// to roll back.
+el('race').onclick = async () => {
+    el('book').disabled = true;
+    el('race').disabled = true;
+
+    const seats = [...state.selected].sort();
+    const email = el('email').value.trim();
+
+    const [mine, rival] = await Promise.allSettled([
+        placeBooking(email, seats),
+        placeBooking(RIVAL_EMAIL, seats),
+    ]);
+
+    if (mine.status === 'rejected' && rival.status === 'rejected') {
+        toast(mine.reason.message);
+    } else {
+        trackRace(
+            mine.status === 'fulfilled' ? mine.value.bookingId : null,
+            rival.status === 'fulfilled' ? rival.value.bookingId : null);
+
+        if (mine.status === 'rejected') toast(`Your booking: ${mine.reason.message}`);
+        if (rival.status === 'rejected') toast(`Rival's booking: ${rival.reason.message}`);
+
+        state.selected.clear();
+        await refresh();
+        el('flow-section').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    updateTally();
+};
+
+/* ── Chaos: a demo switch on Payments' simulated card network ────────────── */
+
+const CHAOS_NOTES = {
+    None: 'Payments is behaving normally.',
+    Paused: 'Payments is paused — an authorization already in flight stays unacknowledged on the queue. Nothing is retrying it; it is simply waiting.',
+    Slow: 'Every authorization now takes about five seconds.',
+    Failing: 'The next authorization or two will fail. MassTransit’s retry policy keeps trying — the tape will show the faults, then a success.',
+};
+
+function applyChaosMode(mode) {
+    state.chaosMode = mode;
+    el('chaos-pause').setAttribute('aria-pressed', String(mode === 'Paused'));
+    el('chaos-slow').setAttribute('aria-pressed', String(mode === 'Slow'));
+    el('chaos-fail').setAttribute('aria-pressed', String(mode === 'Failing'));
+    el('chaos-note').textContent = CHAOS_NOTES[mode] ?? '';
+}
+
+async function setChaosMode(mode) {
+    try {
+        applyChaosMode((await api('/payments/chaos', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ mode }),
+        })).mode);
+    } catch (error) {
+        toast(error.message);
+    }
+}
+
+// Pause and Slow are switches — clicking an active one turns it back off. "Fail twice,
+// then succeed" is a one-shot action: the server counts the failures down and returns
+// itself to None on its own, which is why it is never rendered as an active toggle for
+// longer than the next poll takes to notice.
+el('chaos-pause').onclick = () => setChaosMode(state.chaosMode === 'Paused' ? 'None' : 'Paused');
+el('chaos-slow').onclick = () => setChaosMode(state.chaosMode === 'Slow' ? 'None' : 'Slow');
+el('chaos-fail').onclick = () => setChaosMode('Failing');
+
 /* ── Step 3: the flow ─────────────────────────────────────────────────────── */
 
+const FLOW_PANELS = {
+    mine: { list: el('flow-mine'), note: el('flow-note-mine'), waterfall: el('waterfall-mine') },
+    rival: { list: el('flow-rival'), note: el('flow-note-rival'), waterfall: el('waterfall-rival') },
+};
+
+function clearFlowPanels() {
+    for (const panel of Object.values(FLOW_PANELS)) {
+        replace(panel.list);
+        panel.note.textContent = '';
+        replace(panel.waterfall);
+        panel.waterfall.hidden = true;
+    }
+}
+
 function track(bookingId) {
-    state.tracked = bookingId;
+    clearFlowPanels();
+    state.tracked = { mine: bookingId, rival: null };
     el('flow-section').hidden = false;
+    el('flow-label-mine').hidden = true;
+    el('flow-panel-rival').hidden = true;
 
     const url = new URL(location.href);
     url.searchParams.set('booking', bookingId);
     history.replaceState(null, '', url);
 }
 
+// "Race a rival" tracks two bookings at once, so the two flow panels both get a label
+// and the URL stops pointing at a single booking — there is no one booking to deep-link
+// to once there are two racing for the same seats.
+function trackRace(mineId, rivalId) {
+    clearFlowPanels();
+    state.tracked = { mine: mineId, rival: rivalId };
+    el('flow-section').hidden = false;
+    el('flow-label-mine').hidden = false;
+    el('flow-panel-rival').hidden = false;
+
+    const url = new URL(location.href);
+    url.searchParams.delete('booking');
+    history.replaceState(null, '', url);
+}
 
 // Each step names the service that made the decision, because that is the thing worth
 // seeing: no single component is driving this, they are just reacting to each other.
-function drawFlow(booking, payment, mail) {
+function drawFlow(booking, payment, mail, panel) {
     if (!booking) return;
 
     const placed = booking.placedAtUtc;
@@ -241,13 +406,25 @@ function drawFlow(booking, payment, mail) {
             note: booking.payBeforeUtc
                 ? `held until ${clock.format(new Date(booking.payBeforeUtc))}`
                 : null,
+            // While payment is still outstanding, tickHoldCountdowns overwrites the
+            // static note above with a live "Xs left to pay" every second, turning
+            // amber under 30s — the short-holds switch is only worth having if a
+            // viewer can watch the number count down, not read a fixed timestamp.
+            payBeforeUtc: booking.payBeforeUtc && !payment && !failed ? booking.payBeforeUtc : null,
         },
         {
-            what: payment ? (payment.status === 'Captured' ? 'Payment captured' : 'Payment declined') : 'Taking payment…',
+            // The chaos strip's "Pause Payments" is named here on purpose: without it,
+            // a paused payment and a slow one look identical — both just say "pending".
+            what: payment
+                ? (payment.status === 'Captured' ? 'Payment captured' : 'Payment declined')
+                : (!failed && state.chaosMode === 'Paused' ? 'Payments is paused…' : 'Taking payment…'),
             who: 'Payments — publishes the outcome either way',
             at: payment?.decidedAtUtc ?? null,
             state: payment ? (payment.status === 'Captured' ? 'done' : 'failed') : (failed ? 'failed' : 'pending'),
-            note: payment?.reference ?? payment?.declineReason ?? null,
+            note: payment?.reference ?? payment?.declineReason
+                ?? (!payment && !failed && state.chaosMode === 'Paused'
+                    ? 'the message is waiting on the queue, not retrying'
+                    : null),
         },
         {
             what: booking.status === 'Confirmed' ? 'Booking confirmed'
@@ -269,7 +446,7 @@ function drawFlow(booking, payment, mail) {
         },
     ];
 
-    replace(el('flow'), steps.map(step => {
+    replace(panel.list, steps.map(step => {
         const item = node('li', {},
             node('span', { className: 'dot', textContent: markerFor(step.state) }),
             node('span', { className: 'what', textContent: step.what }),
@@ -277,17 +454,270 @@ function drawFlow(booking, payment, mail) {
             node('span', { className: 'who', textContent: step.note ? `${step.who} · ${step.note}` : step.who }));
 
         item.dataset.state = step.state;
+
+        if (step.payBeforeUtc) {
+            item.dataset.payBefore = step.payBeforeUtc;
+            item.dataset.whoBase = step.who;
+        }
+
         return item;
     }));
 
-    el('flow-note').textContent = booking.status === 'Confirmed'
+    panel.note.textContent = booking.status === 'Confirmed'
         ? `Seats ${booking.seats.join(', ')} for ${booking.filmTitle} are yours. The ticket is in the Mailpit inbox, linked from the Aspire dashboard.`
         : failed
             ? 'The seats went straight back on sale — that is the compensating action, not a rollback.'
             : 'Every step below is a message. Nothing is orchestrating them.';
+
+    tickHoldCountdowns();
 }
 
 const markerFor = state => ({ done: '✓', failed: '✕', pending: '·', waiting: '' })[state] ?? '';
+
+/* ── Trace waterfall ──────────────────────────────────────────────────────── */
+//
+// Built entirely from the bus tape's own timestamps (recordEntryForWaterfall, above) —
+// not a real trace backend, which is exactly why the caption beside it says so. Fine to
+// within a millisecond or two on one machine sharing one clock; not a substitute for
+// the Aspire dashboard's own trace view, which is what the link beside it is for.
+
+const SERVICE_LANE_ORDER = ['screenings', 'bookings', 'payments', 'notifications', 'gateway'];
+
+// Pairs each event's Published row with the first Consumed row for the same event —
+// a Faulted row is a retry that did not (yet) finish the hop, so it is left out of the
+// waterfall itself, though it already showed up in the tape rail above.
+function buildHops(entries) {
+    const byEvent = new Map();
+
+    for (const entry of entries) {
+        const bucket = byEvent.get(entry.event) ?? { published: null, consumed: null };
+
+        if (entry.kind === 'Published') bucket.published = entry;
+        else if (entry.kind === 'Consumed' && !bucket.consumed) bucket.consumed = entry;
+
+        byEvent.set(entry.event, bucket);
+    }
+
+    return [...byEvent.values()].filter(hop => hop.published);
+}
+
+function drawWaterfall(booking, entries, container) {
+    const hops = buildHops(entries).map(hop => ({
+        service: hop.consumed?.service ?? null,
+        publishedAtMs: new Date(hop.published.atUtc) - new Date(booking.placedAtUtc),
+        consumeStartMs: hop.consumed
+            ? new Date(hop.consumed.atUtc) - new Date(booking.placedAtUtc) - hop.consumed.durationMs
+            : null,
+        consumeEndMs: hop.consumed ? new Date(hop.consumed.atUtc) - new Date(booking.placedAtUtc) : null,
+    }));
+
+    if (hops.length === 0) {
+        container.hidden = true;
+        return;
+    }
+
+    const totalMs = Math.max(...hops.map(hop => hop.consumeEndMs ?? hop.publishedAtMs), 1);
+    const pct = ms => `${Math.max(0, Math.min(100, (ms / totalMs) * 100)).toFixed(2)}%`;
+
+    // The gap between a publish and the hop's own consume is queue wait — the point of
+    // this whole panel. The widest one gets a label; the others still draw, so the
+    // shape of "where the time went" is visible even without reading a number.
+    const gaps = hops
+        .filter(hop => hop.consumeStartMs !== null && hop.consumeStartMs > hop.publishedAtMs)
+        .map(hop => ({ startMs: hop.publishedAtMs, endMs: hop.consumeStartMs }));
+
+    const widestGap = gaps.reduce(
+        (widest, gap) => (gap.endMs - gap.startMs > (widest?.endMs - widest?.startMs ?? -1) ? gap : widest),
+        null);
+
+    const gapTrack = node('div', { className: 'wf-gaptrack' }, gaps.map(gap => {
+        const bar = node('span', {
+            className: 'wf-gap',
+            style: `left:${pct(gap.startMs)}; width:${pct(gap.endMs - gap.startMs)}`,
+        });
+
+        if (gap === widestGap) {
+            bar.append(node('span', {
+                className: 'wf-gap-label',
+                style: `left:${pct((gap.startMs + gap.endMs) / 2)}`,
+                textContent: `${Math.round(gap.endMs - gap.startMs)} ms queue wait`,
+            }));
+        }
+
+        return bar;
+    }));
+
+    const lanes = SERVICE_LANE_ORDER
+        .map(service => ({ service, bars: hops.filter(hop => hop.service === service) }))
+        .filter(lane => lane.bars.length > 0)
+        .map(lane => node('div', { className: 'wf-lane' },
+            node('span', { className: 'wf-lane-label', textContent: lane.service }),
+            node('div', { className: 'wf-track' }, lane.bars.map(hop => {
+                const bar = node('span', {
+                    className: 'wf-bar',
+                    style: `left:${pct(hop.consumeStartMs)}; width:${pct(hop.consumeEndMs - hop.consumeStartMs)}`,
+                    title: `${hop.service}: ${Math.round(hop.consumeEndMs - hop.consumeStartMs)} ms`,
+                });
+
+                bar.style.setProperty('--tape-row-color', `var(--svc-${lane.service})`);
+                return bar;
+            }))));
+
+    replace(container, gapTrack, lanes, node('div', { className: 'wf-axis' },
+        node('span', { textContent: '0 ms' }),
+        node('span', { textContent: `total ${Math.round(totalMs)} ms` })));
+
+    container.hidden = false;
+}
+
+// Runs every second regardless of when the flow was last redrawn, so "Xs left to pay"
+// counts down smoothly between polls instead of jumping only when refresh() happens to
+// fire. Ticking a countdown by re-rendering the whole flow list would also fight the
+// browser's own focus and hover state on it, small as that risk is here.
+function formatPayCountdown(remainingMs) {
+    if (remainingMs <= 0) return 'expiring now…';
+
+    const totalSeconds = Math.ceil(remainingMs / 1000);
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+
+    return minutes > 0 ? `${minutes}m ${seconds}s left to pay` : `${seconds}s left to pay`;
+}
+
+function tickHoldCountdowns() {
+    const now = Date.now();
+
+    for (const item of document.querySelectorAll('.flow li[data-pay-before]')) {
+        const remaining = new Date(item.dataset.payBefore).getTime() - now;
+        const who = item.querySelector('.who');
+
+        who.textContent = `${item.dataset.whoBase} · ${formatPayCountdown(remaining)}`;
+        item.classList.toggle('countdown-warn', remaining > 0 && remaining <= 30_000);
+    }
+}
+
+setInterval(tickHoldCountdowns, 1000);
+
+/* ── Step 3.5: the bus tape ───────────────────────────────────────────────── */
+//
+// Every service tees what it publishes and consumes onto a Redis feed; the gateway
+// streams that feed here over Server-Sent Events (GET /api/events). This is the actual
+// choreography happening, not an inference drawn from polling a read model — and an
+// entry for the tracked booking is what schedules the one poll that keeps the flow
+// above up to date, instead of a fixed-interval loop guessing when to look.
+
+const MAX_TAPE_ROWS = 200;
+
+let tapeRefreshTimer;
+
+// state.tracked is { mine, rival } — rival is null outside of "Race a rival" — since
+// the correlation id for a whole booking's flow is the booking id itself (see
+// PlaceBookingHandler, which stamps it onto CorrelationContext at the very start).
+function trackedCorrelationIds() {
+    return state.tracked ? [state.tracked.mine, state.tracked.rival].filter(Boolean) : [];
+}
+
+function tapeRowLabel(entry) {
+    const verb = entry.kind === 'Published' ? 'published' : entry.kind === 'Faulted' ? 'failed on' : 'consumed';
+    return `${entry.event} ${verb}`;
+}
+
+function tapeRowDetail(entry) {
+    const parts = [];
+    if (entry.durationMs != null) parts.push(`${Math.round(entry.durationMs)} ms`);
+    if (entry.detail) parts.push(entry.detail);
+    return parts.join(' — ');
+}
+
+function tapeRow(entry) {
+    const detail = tapeRowDetail(entry);
+
+    const row = node('li', { className: 'tape-row' },
+        node('span', { className: 'svc', textContent: entry.service }),
+        node('span', { className: 'event', textContent: tapeRowLabel(entry) }),
+        node('span', { className: 'at', textContent: preciseClock.format(new Date(entry.atUtc)) }),
+        detail ? node('span', { className: 'detail', textContent: detail }) : null);
+
+    row.dataset.kind = entry.kind;
+    row.dataset.tracked = String(trackedCorrelationIds().includes(entry.correlationId));
+    row.style.setProperty('--tape-row-color', `var(--svc-${entry.service})`);
+    return row;
+}
+
+function applyTapeFilter() {
+    const onlyTracked = el('tape-filter').checked;
+
+    for (const row of el('tape-rows').children) {
+        if (row.classList.contains('tape-empty')) continue;
+        row.hidden = onlyTracked && row.dataset.tracked !== 'true';
+    }
+}
+
+el('tape-filter').onchange = applyTapeFilter;
+
+const MAX_TRACKED_CORRELATIONS = 50;
+
+// Grouped by correlation id so the trace waterfall can be rebuilt for whichever
+// booking(s) are tracked, without asking the gateway for anything it has not already
+// streamed here. Capped the same way the tape rail itself is capped, so a long-running
+// demo session cannot grow this without bound.
+function recordEntryForWaterfall(entry) {
+    if (!state.entriesByCorrelation.has(entry.correlationId)) {
+        if (state.entriesByCorrelation.size >= MAX_TRACKED_CORRELATIONS) {
+            const oldest = state.entriesByCorrelation.keys().next().value;
+            state.entriesByCorrelation.delete(oldest);
+        }
+
+        state.entriesByCorrelation.set(entry.correlationId, []);
+    }
+
+    state.entriesByCorrelation.get(entry.correlationId).push(entry);
+}
+
+function appendTapeRow(entry) {
+    const rows = el('tape-rows');
+
+    rows.querySelector('.tape-empty')?.remove();
+    rows.append(tapeRow(entry));
+    recordEntryForWaterfall(entry);
+
+    while (rows.children.length > MAX_TAPE_ROWS) {
+        rows.firstElementChild?.remove();
+    }
+
+    applyTapeFilter();
+
+    // A message for the flow we are drawing means that flow just moved: look now
+    // instead of waiting for the next safety-net poll. Debounced because the read
+    // model the flow queries is written a moment after the message that reports it.
+    if (trackedCorrelationIds().includes(entry.correlationId)) {
+        clearTimeout(tapeRefreshTimer);
+        tapeRefreshTimer = setTimeout(() => refresh().catch(() => {}), 150);
+    }
+}
+
+function setTapeStatus(connected, text) {
+    el('tape-status').dataset.connected = String(connected);
+    el('tape-status-text').textContent = text;
+}
+
+async function connectTape() {
+    try {
+        for (const entry of await api('/events/recent?take=100')) {
+            appendTapeRow(entry);
+        }
+    } catch {
+        // The live stream connected below will carry on from here regardless; a seed
+        // that failed to load is not worth failing the page over.
+    }
+
+    const source = new EventSource(`${API}/events`);
+
+    source.addEventListener('bus', event => appendTapeRow(JSON.parse(event.data)));
+    source.onopen = () => setTapeStatus(true, 'live');
+    // EventSource reconnects on its own; this only reflects that state in the UI.
+    source.onerror = () => setTapeStatus(false, 'reconnecting…');
+}
 
 /* ── Ledgers ──────────────────────────────────────────────────────────────── */
 
@@ -355,34 +785,60 @@ const settled = booking => booking?.status === 'Confirmed' || booking?.status ==
 async function refresh() {
     const email = el('email').value.trim();
 
-    const [bookings, payments, mail] = await Promise.all([
+    const [bookings, payments, mail, chaos] = await Promise.all([
         email.includes('@') ? api(`/bookings?customerEmail=${encodeURIComponent(email)}`).catch(() => []) : [],
         api('/payments?take=25').catch(() => []),
         api('/notifications?take=25').catch(() => []),
+        api('/payments/chaos').catch(() => null),
     ]);
 
     drawBookings(bookings);
     drawPayments(payments);
     drawMail(mail);
 
+    // Re-synced here, not only from a click, because "Failing" clears itself back to
+    // None server-side once it has burned through its failures.
+    if (chaos) applyChaosMode(chaos.mode);
+
     if (state.tracked) {
-        const booking = bookings.find(candidate => candidate.bookingId === state.tracked)
-            ?? await api(`/bookings/${state.tracked}`).catch(() => null);
+        const resolveBooking = async id => id && (
+            bookings.find(candidate => candidate.bookingId === id)
+                ?? await api(`/bookings/${id}`).catch(() => null));
 
-        drawFlow(
-            booking,
-            payments.find(payment => payment.bookingId === state.tracked),
-            mail.find(entry => entry.bookingId === state.tracked));
+        const { mine, rival } = state.tracked;
+        const [mineBooking, rivalBooking] = await Promise.all([resolveBooking(mine), resolveBooking(rival)]);
 
-        if (settled(booking)) {
+        if (mineBooking) {
+            drawFlow(
+                mineBooking,
+                payments.find(payment => payment.bookingId === mine),
+                mail.find(entry => entry.bookingId === mine),
+                FLOW_PANELS.mine);
+            drawWaterfall(mineBooking, state.entriesByCorrelation.get(mine) ?? [], el('waterfall-mine'));
+        }
+
+        if (rival && rivalBooking) {
+            drawFlow(
+                rivalBooking,
+                payments.find(payment => payment.bookingId === rival),
+                mail.find(entry => entry.bookingId === rival),
+                FLOW_PANELS.rival);
+            drawWaterfall(rivalBooking, state.entriesByCorrelation.get(rival) ?? [], el('waterfall-rival'));
+        }
+
+        // Both sides need to be finished before the seat map is worth reloading — a
+        // race that is still in flight is exactly the moment not to.
+        if (settled(mineBooking) && (!rival || settled(rivalBooking))) {
             await Promise.all([loadScreenings(), loadSeatMap()]);
             state.tracked = null;
         }
     }
 }
 
-// Poll hard while a booking is in flight, and gently the rest of the time. A real client
-// would take a push feed from the gateway instead.
+// A slow safety net, not the main loop: the bus tape is what actually notices a tracked
+// booking has moved (see appendTapeRow above) and asks for a near-immediate refresh.
+// This tick only covers the gap — a page that loaded before the tape connected, or a
+// tape entry that Redis never delivered.
 async function tick() {
     try {
         await refresh();
@@ -390,12 +846,27 @@ async function tick() {
     } catch (error) {
         console.warn('refresh failed', error);
     } finally {
-        setTimeout(tick, state.tracked ? 500 : 4000);
+        setTimeout(tick, 4000);
     }
 }
 
 el('email').onchange = () => refresh().catch(() => {});
 
+// The dashboard link is fetched once, not per booking: it names the environment, not
+// anything about one flow. An empty dashboardUrl (see AppHost.cs) just leaves it hidden.
+async function loadDemoInfo() {
+    const { dashboardUrl } = await api('/demo');
+
+    if (dashboardUrl) {
+        state.dashboardUrl = dashboardUrl;
+        el('dashboard-link').href = dashboardUrl;
+        el('dashboard-link').hidden = false;
+    }
+}
+
+connectTape();
+loadHoldPolicy().catch(() => {}); // the switch just stays at its default if this fails
+loadDemoInfo().catch(() => {}); // the link just stays hidden if this fails
 await loadScreenings().catch(error => toast(`Could not reach the gateway: ${error.message}`));
 
 // ?screening=<id> makes a seat map shareable, and lets a headless browser reach step 2.

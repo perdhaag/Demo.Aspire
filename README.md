@@ -8,7 +8,17 @@ Each service is a bounded context with its own database, its own model and its o
 vertical slices. They talk through published events on RabbitMQ, never through each
 other's tables.
 
+The UI does not just tell you that; it shows you. A live bus tape streams every message
+as it is published and consumed, a "Short holds" switch compresses a three-minute seat
+hold into twenty seconds so you can watch it expire, a chaos strip pauses or breaks
+Payments on demand, "Race a rival" books the same seats twice at once to prove the
+aggregate is the consistency boundary, and a trace waterfall reconstructs where the
+milliseconds actually went. See [Watching it happen](#watching-it-happen).
+
 ![The demo UI: a seat map and the message flow behind one booking](docs/ui.png)
+
+> The screenshot above predates the bus tape, the chaos strip and "Race a rival" — it
+> still shows the right idea, just not the current page. Worth re-capturing after a run.
 
 ```
                     ┌──────────── Gateway (YARP + Redis output cache) ────────────┐
@@ -85,14 +95,50 @@ after that happens on the bus:
 | 6 | Screenings | Turns the hold into a sale, or puts the seats back | — |
 | 6 | Notifications | Sends the ticket or the apology over SMTP | — |
 
-Two unhappy paths are worth triggering on purpose:
+A few unhappy paths — and one race — are worth triggering on purpose:
 
 * **Declined payment** — book with an address whose local part contains `decline`, e.g.
   `decline@example.com`. Payments refuses, Bookings cancels, Screenings releases the
   seats and Notifications mails an apology.
-* **Expired hold** — a hold lives for three minutes. `SeatHoldSweeper` turns that
-  deadline into a `SeatHoldExpired` event, which cancels the booking. It is the only
-  thing in the system that is driven by the clock rather than by a message.
+* **Expired hold** — a hold lives for three minutes by default. `SeatHoldSweeper` turns
+  that deadline into a `SeatHoldExpired` event, which cancels the booking. It is the only
+  thing in the system that is driven by the clock rather than by a message. Flip the
+  masthead's **Short holds (20s)** switch first if you don't want to wait three minutes
+  for it.
+* **A broken card network** — the chaos strip under the seat map can pause, slow, or
+  break Payments on purpose (see [Watching it happen](#watching-it-happen)).
+* **Two customers, one seat** — **Race a rival** books the seats you picked twice at
+  once, as you and as `rival@example.com`. Exactly one of you keeps them.
+
+## Watching it happen
+
+Five things exist purely so the choreography is visible instead of asserted:
+
+* **The bus tape** (the rail beside the page) streams every integration event as it is
+  published or consumed, over Server-Sent Events (`GET /api/events`). It is what the
+  page actually reacts to — placing a booking no longer starts a fast poll; a tape entry
+  for the booking you are watching schedules the one refresh that matters, and the poll
+  loop underneath is only a slow safety net.
+* **Short holds** (the masthead switch) shortens a new seat hold from three minutes to
+  twenty seconds and speeds up `SeatHoldSweeper` to match (`GET`/`POST
+  /screenings/hold-policy`), so the "seats went back on sale on their own" path is
+  something you can watch rather than take on faith.
+* **The chaos strip** (`GET`/`POST /payments/chaos`) can pause Payments — the next
+  authorization sits on the queue exactly as a stalled card network would leave it,
+  unacknowledged and un-retried — slow it down by about five seconds, or make it fail
+  once or twice before succeeding, so MassTransit's retry policy is something you watch
+  happen rather than a line in `MessagingExtensions.cs`.
+* **Race a rival** places two bookings for the same seats in the same instant. Both pass
+  Bookings' courtesy check; `Screening.HoldSeats` is where it is actually decided, and
+  the loser's flow shows a rejected hold, not a rollback — there was nothing to roll
+  back. When the two land closely enough to collide on PostgreSQL's `xmin`, the bus tape
+  shows exactly that: a faulted row, then a retried success.
+* **The trace waterfall**, under each flow, is reconstructed from the bus tape's own
+  timestamps — one lane per service, and a hairline above the lanes for the gap between
+  a message being published and it being picked up, the actual argument for asynchronous
+  messaging made visible. It says plainly that it is reconstructed, not measured, because
+  five processes' clocks agree to within a millisecond or two on one machine and nothing
+  more; the link beside it opens the real thing in the Aspire dashboard.
 
 ## How it is put together
 
@@ -141,7 +187,8 @@ registered by convention. Adding a feature never means editing another one.
   domain events *before* `SaveChanges`, so the outbox row and the aggregate change commit
   together. A crash can never leave "seats held" without "everyone was told".
 * **Optimistic concurrency** on PostgreSQL's `xmin`, so two simultaneous holds on the same
-  screening cannot both win.
+  screening cannot both win — **Race a rival** in the UI exists to make this observable
+  on purpose rather than theoretical.
 * **Idempotent aggregates.** `HoldSeats`, `SeatsWereHeld`, `Confirm` and `Cancel` all
   treat a repeat as a no-op, so redelivery is safe even before the inbox is consulted.
 * **Notifications has no database**, so it uses Redis `SET NX` as its de-duplication
@@ -153,7 +200,7 @@ registered by convention. Adding a feature never means editing another one.
 |---|---|
 | **PostgreSQL** | Three databases, one per context, plus the outbox/inbox tables |
 | **RabbitMQ** (MassTransit) | Every message between contexts |
-| **Redis** | Seat-map projection cache, the gateway's output cache, and Notifications' de-duplication ledger and feed |
+| **Redis** | Seat-map projection cache, the gateway's output cache, Notifications' de-duplication ledger and feed, and the bus tape every service writes to and the gateway streams from |
 | **Mailpit** | A real SMTP server with a web inbox |
 | **YARP** | The gateway that fronts all four services under `/api` |
 
@@ -164,6 +211,15 @@ Extension members (`extension(IHostApplicationBuilder builder) { … }` in
 (`CorrelationContext`), collection expressions and spread throughout, `Guid.CreateVersion7`
 for sortable identifiers, `TimeProvider` everywhere instead of `DateTime.UtcNow`, EF Core
 complex properties for value objects, and minimal APIs with `TypedResults`.
+
+The five features in [Watching it happen](#watching-it-happen) add a few more:
+`TypedResults.ServerSentEvents` for the bus tape (the SSE support minimal APIs gained in
+.NET 10), `JsonStringEnumConverter<TEnum>` on the enums that cross the wire so a bare
+`[JsonConverter]` attribute is enough for every serializer — source-generated or not —
+to agree on the same string, `System.Threading.Lock` in `ChaosSwitch`, the
+`CancellationTokenSource(TimeSpan, TimeProvider)` overload for its five-minute ceiling,
+and `PeriodicTimer.Period`'s setter so `SeatHoldSweeper` can re-read the demo's hold
+policy on every tick instead of only at start-up.
 
 ## Projects
 

@@ -24,6 +24,15 @@
 
     --radius: 12px;
     --shadow: 0 1px 2px rgb(29 27 22 / 6%), 0 8px 24px -18px rgb(29 27 22 / 40%);
+
+    /* One colour per service, used everywhere one is named: the tape, the flow's dots,
+       the trace waterfall. The point is that the same hue always means the same
+       service, so a reader learns the mapping once. */
+    --svc-screenings: #1d5a8c;
+    --svc-bookings: #6b3fa0;
+    --svc-payments: #9c6b12;
+    --svc-notifications: #146b5c;
+    --svc-gateway: #8c1d2c;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -46,6 +55,12 @@
         --bad-soft: #2f1b19;
 
         --shadow: 0 1px 2px rgb(0 0 0 / 40%), 0 8px 24px -18px rgb(0 0 0 / 90%);
+
+        --svc-screenings: #7db8e8;
+        --svc-bookings: #c3a6f2;
+        --svc-payments: #e8b768;
+        --svc-notifications: #6fd6bd;
+        --svc-gateway: #e8899a;
     }
 }
 
@@ -70,7 +85,6 @@ code { font-family: ui-monospace, "SF Mono", "Cascadia Code", Menlo, monospace; 
 }
 
 .masthead-inner,
-main,
 footer > p {
     max-width: 62rem;
     margin-inline: auto;
@@ -105,6 +119,16 @@ footer > p {
 .identity { display: flex; flex-direction: column; gap: 4px; }
 .identity span { color: var(--ink-soft); font-size: .74rem; text-transform: uppercase; letter-spacing: .08em; }
 
+.switch {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    color: var(--ink-soft);
+    font-size: .8rem;
+    white-space: nowrap;
+    cursor: pointer;
+}
+
 input {
     font: inherit;
     color: var(--ink);
@@ -122,9 +146,25 @@ button:focus-visible {
     outline-offset: 2px;
 }
 
+/* ── Layout: the page content beside the live bus tape ───────────────────── */
+
+.layout {
+    max-width: 78rem;
+    margin-inline: auto;
+    padding-inline: 20px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 21rem;
+    align-items: start;
+    gap: 8px 28px;
+}
+
+@media (max-width: 900px) {
+    .layout { grid-template-columns: minmax(0, 1fr); }
+}
+
 /* ── Sections ─────────────────────────────────────────────────────────────── */
 
-main { padding-block: 8px 40px; }
+main { padding-block: 8px 40px; min-width: 0; }
 section { margin-block: 32px; }
 
 h2 {
@@ -285,9 +325,24 @@ h2 {
 
 .seat:hover:not(:disabled) { transform: translateY(-2px); }
 .seat:disabled { cursor: not-allowed; }
-.seat[data-status="Held"] { background: var(--warn-soft); border-color: var(--warn); color: var(--warn); }
+.seat[data-status="Held"] { position: relative; background: var(--warn-soft); border-color: var(--warn); color: var(--warn); }
 .seat[data-status="Sold"] { background: var(--accent); border-color: var(--accent); color: var(--panel); }
 .seat[aria-pressed="true"] { background: var(--ok); border-color: var(--ok); color: var(--panel); }
+
+/* A depleting ring around a held seat, driven by --hold-pct (percentage of the hold
+   remaining, updated in a single rAF loop in app.js — see tickHoldRings). It sits in a
+   circular halo around the seat rather than inside it, so the seat number stays legible
+   at every point in the countdown. */
+.seat[data-status="Held"]::after {
+    content: "";
+    position: absolute;
+    inset: -3px;
+    border-radius: 50%;
+    background: conic-gradient(var(--warn) calc(var(--hold-pct, 100) * 1%), transparent 0);
+    -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 2.5px), #000 calc(100% - 2.5px));
+    mask: radial-gradient(farthest-side, transparent calc(100% - 2.5px), #000 calc(100% - 2.5px));
+    pointer-events: none;
+}
 
 .legend {
     display: flex;
@@ -329,6 +384,8 @@ h2 {
 .tally strong { font-weight: 600; }
 .tally span { color: var(--ink-soft); font-size: .85rem; }
 
+.checkout-actions { display: flex; gap: 10px; }
+
 .primary {
     font: inherit;
     font-weight: 500;
@@ -346,7 +403,48 @@ h2 {
     .primary { color: #221016; }
 }
 
+.secondary {
+    font: inherit;
+    font-weight: 500;
+    padding: 10px 18px;
+    border: 1px solid var(--line-strong);
+    border-radius: 9px;
+    background: var(--panel);
+    color: var(--ink-soft);
+    cursor: pointer;
+}
+
+.secondary:hover:not(:disabled) { border-color: var(--ink-faint); color: var(--ink); }
+.secondary:disabled { opacity: .4; cursor: default; }
+
 /* ── Flow timeline ────────────────────────────────────────────────────────── */
+
+.flow-columns {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 16px;
+}
+
+/* Two columns only once "Race a rival" has actually revealed the second panel —
+   :has() lets the layout react to that without app.js touching a class here too. */
+.flow-columns:has(#flow-panel-rival:not([hidden])) {
+    grid-template-columns: 1fr 1fr;
+}
+
+@media (max-width: 700px) {
+    .flow-columns:has(#flow-panel-rival:not([hidden])) {
+        grid-template-columns: 1fr;
+    }
+}
+
+.flow-panel-label {
+    margin: 0 0 10px;
+    font-weight: 600;
+    font-size: .78rem;
+    text-transform: uppercase;
+    letter-spacing: .07em;
+    color: var(--ink-soft);
+}
 
 .flow { list-style: none; margin: 0; padding: 0; }
 
@@ -394,6 +492,228 @@ h2 {
 .flow li[data-state="waiting"] .what { color: var(--ink-faint); font-weight: 400; }
 .flow .who { grid-column: 2; color: var(--ink-soft); font-size: .82rem; }
 .flow .when { color: var(--ink-faint); font-size: .78rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* The last 30s of a seat hold, ticking down live — see tickHoldCountdowns in app.js. */
+.flow li.countdown-warn .who { color: var(--warn); font-weight: 500; }
+
+/* ── Trace waterfall ──────────────────────────────────────────────────────── */
+/* Built from the bus tape's own timestamps (see drawWaterfall in app.js), not from a
+   real trace backend — that honesty is why every number here is reconstructed rather
+   than measured, and why the caption beside it says so. */
+
+.waterfall {
+    margin-top: 16px;
+    padding-top: 14px;
+    border-top: 1px solid var(--line);
+}
+
+.wf-gaptrack {
+    position: relative;
+    height: 16px;
+    margin: 0 0 2px 6.5rem;
+}
+
+.wf-gap {
+    position: absolute;
+    top: 7px;
+    height: 2px;
+    min-width: 2px;
+    background: var(--ink-faint);
+}
+
+.wf-gap-label {
+    position: absolute;
+    top: -11px;
+    transform: translateX(-50%);
+    font-size: .66rem;
+    color: var(--ink-faint);
+    white-space: nowrap;
+}
+
+.wf-lane {
+    display: grid;
+    grid-template-columns: 6.5rem 1fr;
+    align-items: center;
+    gap: 8px;
+    min-height: 1.7rem;
+}
+
+.wf-lane-label {
+    font-size: .72rem;
+    color: var(--ink-soft);
+    text-align: right;
+    white-space: nowrap;
+}
+
+.wf-track {
+    position: relative;
+    height: 1rem;
+    background: var(--page);
+    border-radius: 4px;
+}
+
+.wf-bar {
+    position: absolute;
+    top: 0;
+    height: 100%;
+    min-width: 3px;
+    border-radius: 3px;
+    background: var(--tape-row-color, var(--ink-faint));
+}
+
+.wf-axis {
+    display: flex;
+    justify-content: space-between;
+    margin: 6px 0 0 6.5rem;
+    font-size: .68rem;
+    color: var(--ink-faint);
+    font-variant-numeric: tabular-nums;
+}
+
+.wf-caption {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 10px;
+    align-items: baseline;
+}
+
+.wf-caption a { color: var(--accent); white-space: nowrap; }
+
+/* ── Chaos strip ──────────────────────────────────────────────────────────── */
+
+.chaos-mark { background: var(--warn); color: var(--panel); }
+
+.chaos-toggles {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.chip {
+    font: inherit;
+    font-size: .84rem;
+    color: var(--ink-soft);
+    background: var(--page);
+    border: 1px solid var(--line-strong);
+    border-radius: 999px;
+    padding: 7px 14px;
+    cursor: pointer;
+    transition: border-color .12s, color .12s, background .12s;
+}
+
+.chip:hover { border-color: var(--ink-faint); }
+
+.chip[aria-pressed="true"] {
+    background: var(--warn-soft);
+    border-color: var(--warn);
+    color: var(--warn);
+    font-weight: 500;
+}
+
+/* ── Bus tape ─────────────────────────────────────────────────────────────── */
+
+.tape {
+    position: sticky;
+    top: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    max-height: calc(100vh - 40px);
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 14px 14px 6px;
+    margin-block: 32px;
+}
+
+@media (max-width: 900px) {
+    .tape { position: static; max-height: 24rem; }
+}
+
+.tape-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.tape-head h2 { margin: 0; }
+
+.tape-filter {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    color: var(--ink-soft);
+    font-size: .78rem;
+    white-space: nowrap;
+}
+
+.tape-status {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--ink-faint);
+    font-size: .74rem;
+}
+
+.tape-status .dot-live {
+    width: .5rem;
+    height: .5rem;
+    border-radius: 50%;
+    background: var(--ink-faint);
+}
+
+.tape-status[data-connected="true"] .dot-live {
+    background: var(--ok);
+    animation: pulse 1.4s ease-in-out infinite;
+}
+
+.tape-rows {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    overflow-y: auto;
+    flex: 1;
+    min-height: 6rem;
+    display: flex;
+    flex-direction: column-reverse; /* newest entry ends up on top without re-sorting */
+    gap: 2px;
+}
+
+.tape-row {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: baseline;
+    gap: 4px 8px;
+    padding: 6px 4px;
+    border-radius: 6px;
+    font-size: .78rem;
+}
+
+.tape-row[data-tracked="true"] { background: var(--accent-soft); }
+
+.tape-row .svc {
+    grid-row: span 2;
+    align-self: start;
+    min-width: 5.6rem;
+    padding: 2px 6px;
+    border-radius: 5px;
+    font-size: .68rem;
+    font-weight: 600;
+    letter-spacing: .02em;
+    text-align: center;
+    color: #fff;
+    background: var(--tape-row-color, var(--ink-faint));
+    white-space: nowrap;
+}
+
+.tape-row .event { font-weight: 500; }
+.tape-row[data-kind="Faulted"] .event { color: var(--bad); }
+.tape-row .at { color: var(--ink-faint); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.tape-row .detail { grid-column: 2 / span 2; color: var(--ink-soft); font-size: .74rem; }
+
+.tape-empty { color: var(--ink-faint); font-size: .84rem; margin: auto; padding: 20px 0; }
 
 /* ── Tabs and tables ──────────────────────────────────────────────────────── */
 
