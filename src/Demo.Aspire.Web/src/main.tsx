@@ -1,14 +1,15 @@
 // Demo Kino's front end. Everything it knows arrives through the gateway under /api, so
 // the browser never learns that there are four services behind it.
 //
-// Phase 0 scaffold: this renders a placeholder so the toolchain — bun, TypeScript 7, and
-// the gateway's build target — can be verified end to end before any of the page itself
-// is moved across. See docs/react-ui-plan.md.
+// Placing a booking is one POST that returns 202. The rest of the story finishes on the
+// message bus — the bus tape is what shows that happening, so this page only needs to poll
+// a read model as a slow safety net, not as its main loop.
 
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 
 import { App } from "./App.tsx";
+import "./app.css";
 
 const root = document.getElementById("root");
 

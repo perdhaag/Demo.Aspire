@@ -1,11 +1,37 @@
+import { BusTape } from "./components/BusTape.tsx";
+import { ChaosStrip } from "./components/ChaosStrip.tsx";
+import { FlowSection } from "./components/FlowSection.tsx";
+import { Footer } from "./components/Footer.tsx";
+import { Ledgers } from "./components/Ledgers.tsx";
+import { Masthead } from "./components/Masthead.tsx";
+import { ScreeningList } from "./components/ScreeningList.tsx";
+import { SeatingSection } from "./components/SeatingSection.tsx";
+import { ToastProvider } from "./components/Toast.tsx";
+import { DemoDataProvider } from "./data/demo-data.tsx";
+import { SelectionProvider } from "./data/selection.tsx";
+
 export function App() {
     return (
-        <main style={{ padding: "2rem", fontFamily: "system-ui, sans-serif" }}>
-            <h1>Demo Kino</h1>
-            <p>
-                The React front end is being built here, one phase at a time. The page
-                still being served at <a href="/">/</a> is the one this replaces.
-            </p>
-        </main>
+        <ToastProvider>
+            <SelectionProvider>
+                <DemoDataProvider>
+                    <Masthead />
+
+                    <div className="layout">
+                        <main>
+                            <ScreeningList />
+                            <SeatingSection />
+                            <ChaosStrip />
+                            <FlowSection />
+                            <Ledgers />
+                        </main>
+
+                        <BusTape />
+                    </div>
+
+                    <Footer />
+                </DemoDataProvider>
+            </SelectionProvider>
+        </ToastProvider>
     );
 }
