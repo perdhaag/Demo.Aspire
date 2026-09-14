@@ -1,10 +1,14 @@
 # The chart only renders ClusterIP Services, so nothing is reachable from outside the Pi
-# without this. k3s ships Traefik as its default ingress controller, which is what the
-# empty ingressClassName picks up.
+# without this. k3s ships Traefik as its ingress controller, and its LoadBalancer Service
+# already holds the Pi's LAN address (192.168.1.230), with ports 80 and 443 open.
 #
-# Change the host to whatever name resolves to the Pi -- a hosts-file entry, a LAN DNS
-# record, or a tailnet name. The gateway fronts both the API and the bundled React UI, so
-# it is the only thing that needs exposing.
+# Three hosts because a browser sends whatever you typed as the Host header, and all three
+# names reach this machine: `pi` and `pi.lan` through LAN DNS, `raspberrypi.local` through
+# mDNS. Matching only the fully-qualified name would leave the short one -- the one anybody
+# actually types -- returning a 404 from Traefik.
+#
+# The gateway fronts both the API and the bundled React UI, so it is the only thing that
+# needs exposing.
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -13,8 +17,8 @@ metadata:
 spec:
   ingressClassName: traefik
   rules:
-    - host: kino.local
-      http:
+    - host: pi
+      http: &backend
         paths:
           - path: /
             pathType: Prefix
@@ -23,3 +27,7 @@ spec:
                 name: gateway-service
                 port:
                   number: 8080
+    - host: pi.lan
+      http: *backend
+    - host: raspberrypi.local
+      http: *backend

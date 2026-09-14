@@ -210,11 +210,12 @@ Verified end to end on the Pi: `POST /api/bookings` returned 202, the booking re
 `Confirmed` in about ten seconds, and the ticket arrived in Mailpit — so all five services,
 Postgres, Redis and RabbitMQ are working on arm64.
 
-Two loose ends:
+The UI is at **http://pi/** (also `http://pi.lan/` and `http://raspberrypi.local/`). Traefik
+holds the Pi's LAN address and ports 80/443 are open; only 6443 is firewalled.
 
-* The Ingress answers to `kino.local`, which nothing resolves yet. Point it at 192.168.1.230
-  in your hosts file or LAN DNS, or change the host in
-  `deploy/apps/demo-kino/ingress.yaml`.
+One loose end, plus a caveat:
+
+* Nothing has a volume, so each image rollout resets the databases (see below).
 * `ghcr-creds` currently holds a `gh` CLI token carrying `repo`, `write:packages`, `gist`
   and `read:org`. It works, but it is far broader than a pull credential needs; replacing it
   with a `read:packages` PAT is a one-command swap.
