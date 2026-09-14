@@ -123,11 +123,17 @@ flux bootstrap github \
   --branch=main \
   --path=deploy/cluster/pi \
   --personal \
+  --read-write-key \
   --components-extra=image-reflector-controller,image-automation-controller
 ```
 
 Flux commits its own manifests to `deploy/cluster/pi/flux-system/` and starts reconciling.
-It also needs write access to push the image-tag commits back — the PAT above covers both.
+
+`--read-write-key` is not optional here. Bootstrap authenticates with the PAT once and then
+leaves a *deploy key* behind as the cluster's lasting credential; that key is read-only
+unless this flag is given, and image automation has to push its tag commits back to main.
+Without it everything reconciles correctly and images simply never update — a failure that
+looks like nothing happening at all.
 
 ### 5. First rollout
 

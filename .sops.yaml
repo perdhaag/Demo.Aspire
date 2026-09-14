@@ -3,5 +3,5 @@
 creation_rules:
   - path_regex: deploy/apps/.*\.enc\.yaml$
     encrypted_regex: '^(data|stringData)$'
-    # Replace with the public key printed by `age-keygen` -- see docs/gitops.md.
-    age: REPLACE_WITH_YOUR_AGE_PUBLIC_KEY
+    # The cluster holds the matching private key as the sops-age Secret in flux-system.
+    age: age16nr43tw34aqh7jknd3syqyamwn862dd063ezuac39paz7m4nverq79gxpe
