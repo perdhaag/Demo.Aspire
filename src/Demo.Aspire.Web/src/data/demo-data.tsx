@@ -18,10 +18,26 @@ import { onEntry } from "../bus/tape-store.ts";
 import { useToast } from "../components/Toast.tsx";
 import { useSelection } from "./selection.tsx";
 
+/**
+ * The booking(s) whose flow is being drawn, resolved for the flow panel. Kept apart from
+ * `bookings` because that list is whatever the address in the masthead has booked — and
+ * during "Race a rival" the rival's booking belongs to someone else's address, so it is
+ * never in it. The flow panel would otherwise have nothing to draw for the side that won.
+ */
+export interface TrackedBookings {
+    mine: BookingResponse | null;
+    rival: BookingResponse | null;
+}
+
 interface DemoData {
     screenings: ScreeningListItem[];
+    /** False until the catalogue has been fetched once. An empty list means "none on
+        sale"; before this flips, it only means "not asked yet", and the page should not
+        claim the former while the latter is true. */
+    screeningsLoaded: boolean;
     seatMap: SeatMapView | null;
     bookings: BookingResponse[];
+    trackedBookings: TrackedBookings;
     payments: PaymentListItem[];
     mail: NotificationEntry[];
     chaosMode: ChaosMode;
@@ -48,8 +64,11 @@ export function DemoDataProvider({ children }: { children: ReactNode }) {
     const { email, screeningId, tracked, stopTracking } = useSelection();
 
     const [screenings, setScreenings] = useState<ScreeningListItem[]>([]);
+    const [screeningsLoaded, setScreeningsLoaded] = useState(false);
     const [seatMap, setSeatMap] = useState<SeatMapView | null>(null);
     const [bookings, setBookings] = useState<BookingResponse[]>([]);
+    const [trackedBookings, setTrackedBookings] = useState<TrackedBookings>(
+        { mine: null, rival: null });
     const [payments, setPayments] = useState<PaymentListItem[]>([]);
     const [mail, setMail] = useState<NotificationEntry[]>([]);
     const [chaosMode, setChaosMode] = useState<ChaosMode>("None");
@@ -64,7 +83,13 @@ export function DemoDataProvider({ children }: { children: ReactNode }) {
     live.current = { email, screeningId, tracked, stopTracking };
 
     const loadScreenings = useCallback(async () => {
-        setScreenings(await client.listScreenings());
+        try {
+            setScreenings(await client.listScreenings());
+        } finally {
+            // Even a failed fetch has been asked: the catalogue stops saying "Loading…"
+            // and says what it actually knows, which is nothing.
+            setScreeningsLoaded(true);
+        }
     }, []);
 
     const loadSeatMap = useCallback(async () => {
@@ -90,7 +115,10 @@ export function DemoDataProvider({ children }: { children: ReactNode }) {
         // clears itself back to None server-side once it has burned through its failures.
         if (chaos) setChaosMode(chaos.mode);
 
-        if (!watching) return;
+        if (!watching) {
+            setTrackedBookings({ mine: null, rival: null });
+            return;
+        }
 
         const resolve = async (id: string | null) => id
             ? nextBookings.find(candidate => candidate.bookingId === id)
@@ -98,6 +126,8 @@ export function DemoDataProvider({ children }: { children: ReactNode }) {
             : null;
 
         const [mine, rival] = await Promise.all([resolve(watching.mine), resolve(watching.rival)]);
+
+        setTrackedBookings({ mine: mine ?? null, rival: rival ?? null });
 
         // Both sides have to be finished before the seat map is worth reloading — a race
         // still in flight is exactly the moment not to.
@@ -177,10 +207,10 @@ export function DemoDataProvider({ children }: { children: ReactNode }) {
     }, [refresh]);
 
     const value = useMemo(() => ({
-        screenings, seatMap, bookings, payments, mail, chaosMode, holdPolicySeconds,
-        dashboardUrl, refresh, setChaos, setHoldSeconds,
-    }), [screenings, seatMap, bookings, payments, mail, chaosMode, holdPolicySeconds,
-        dashboardUrl, refresh, setChaos, setHoldSeconds]);
+        screenings, screeningsLoaded, seatMap, bookings, trackedBookings, payments, mail,
+        chaosMode, holdPolicySeconds, dashboardUrl, refresh, setChaos, setHoldSeconds,
+    }), [screenings, screeningsLoaded, seatMap, bookings, trackedBookings, payments, mail,
+        chaosMode, holdPolicySeconds, dashboardUrl, refresh, setChaos, setHoldSeconds]);
 
     return <DemoDataContext value={value}>{children}</DemoDataContext>;
 }

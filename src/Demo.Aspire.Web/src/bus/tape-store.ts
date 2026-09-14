@@ -13,12 +13,20 @@ import type { BusTapeEntry } from "../api/types.ts";
 const MAX_TAPE_ROWS = 200;
 const MAX_TRACKED_CORRELATIONS = 50;
 
+/**
+ * Three states, not a boolean: before the stream has ever opened the tape is still
+ * connecting, and that reads very differently from a stream that opened and dropped. A
+ * page that says "reconnecting…" before it has once connected is claiming a fault that
+ * has not happened.
+ */
+export type TapeConnection = "connecting" | "live" | "reconnecting";
+
 export interface TapeSnapshot {
     readonly entries: readonly BusTapeEntry[];
-    readonly connected: boolean;
+    readonly connection: TapeConnection;
 }
 
-let snapshot: TapeSnapshot = { entries: [], connected: false };
+let snapshot: TapeSnapshot = { entries: [], connection: "connecting" };
 
 const listeners = new Set<() => void>();
 const entryListeners = new Set<(entry: BusTapeEntry) => void>();
@@ -41,7 +49,7 @@ function append(entry: BusTapeEntry) {
 
     snapshot = {
         entries: entries.length > MAX_TAPE_ROWS ? entries.slice(-MAX_TAPE_ROWS) : entries,
-        connected: snapshot.connected,
+        connection: snapshot.connection,
     };
 
     if (!byCorrelation.has(entry.correlationId)) {
@@ -59,10 +67,10 @@ function append(entry: BusTapeEntry) {
     for (const listener of entryListeners) listener(entry);
 }
 
-function setConnected(connected: boolean) {
-    if (snapshot.connected === connected) return;
+function setConnection(connection: TapeConnection) {
+    if (snapshot.connection === connection) return;
 
-    snapshot = { entries: snapshot.entries, connected };
+    snapshot = { entries: snapshot.entries, connection };
     emit();
 }
 
@@ -84,8 +92,9 @@ function start() {
             source.addEventListener("bus", event =>
                 append(JSON.parse((event as MessageEvent<string>).data) as BusTapeEntry));
 
-            source.onopen = () => setConnected(true);
-            source.onerror = () => setConnected(false);
+            // EventSource reconnects on its own; this only reflects that in the UI.
+            source.onopen = () => setConnection("live");
+            source.onerror = () => setConnection("reconnecting");
         });
 }
 
